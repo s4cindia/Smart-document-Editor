@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environments
+venv/
+.venv/
+
+# Environment Variables
+.env
+
+# Database
+*.db
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Exports
+exports/*
+!exports/.gitkeep
+
+# Reports
+reports/*
+!reports/.gitkeep
+
+# IDE Files
+.vscode/
+.idea/
+
+# OS Files
+.DS_Store
+Thumbs.db
