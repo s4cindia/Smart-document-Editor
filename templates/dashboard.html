@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Document Editor — Dashboard</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --font-ui:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      --accent:#2563eb; --accent-hover:#1d4ed8; --accent-soft:#eff6ff; --teal:#0d9488;
+      --bg:#f4f6fb; --bg-elev:#ffffff; --bg-soft:#f8fafc;
+      --border:#e4e8f0; --text:#1f2430; --text-soft:#5a6477; --text-faint:#8a93a6;
+      --radius:14px; --radius-sm:9px;
+      --shadow-sm:0 1px 2px rgba(16,24,40,.06);
+      --shadow:0 4px 16px rgba(16,24,40,.08);
+      --shadow-lg:0 16px 48px rgba(16,24,40,.16);
+      --transition:180ms cubic-bezier(.4,0,.2,1);
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;}
+    body{
+      font-family:var(--font-ui); color:var(--text);
+      background:
+        radial-gradient(1200px 500px at 100% -10%, rgba(37,99,235,.10), transparent 60%),
+        radial-gradient(900px 500px at -10% 0%, rgba(13,148,136,.08), transparent 55%),
+        var(--bg);
+      -webkit-font-smoothing:antialiased;
+      min-height:100%; display:flex; flex-direction:column;
+    }
+    svg{display:block;}
+
+    /* ---------- top bar ---------- */
+    .topbar{
+      display:flex; align-items:center; gap:12px; padding:16px 28px;
+      background:rgba(255,255,255,.75); backdrop-filter:blur(10px);
+      border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10;
+    }
+    .topbar .logo{
+      width:38px; height:38px; border-radius:10px; display:grid; place-items:center;
+      color:#fff; background:linear-gradient(135deg,var(--accent),var(--teal));
+      box-shadow:var(--shadow-sm);
+    }
+    .topbar .brand{font-weight:800; font-size:16px; letter-spacing:-.01em;}
+    .topbar .spacer{flex:1;}
+    .topbar .ghost{
+      display:inline-flex; align-items:center; gap:7px;
+      font-size:13px; font-weight:600; color:var(--text-soft); text-decoration:none;
+      padding:8px 14px; border-radius:8px; border:1px solid var(--border);
+      background:var(--bg-elev); transition:var(--transition);
+    }
+    .topbar .ghost:hover{color:var(--accent); border-color:var(--accent);}
+
+    /* ---------- layout ---------- */
+    .wrap{width:100%; max-width:1120px; margin:0 auto; padding:48px 28px 40px; flex:1;}
+
+    /* ---------- header ---------- */
+    .page-header{margin-bottom:36px;}
+    .eyebrow{
+      display:inline-flex; align-items:center; gap:7px;
+      font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+      color:var(--accent); background:var(--accent-soft);
+      padding:6px 12px; border-radius:999px; margin-bottom:16px;
+    }
+    .page-header h1{
+      font-size:clamp(28px,4vw,40px); font-weight:800; letter-spacing:-.02em; line-height:1.1;
+    }
+    .page-header p{
+      margin-top:10px; font-size:clamp(14px,1.6vw,17px); color:var(--text-soft);
+      max-width:620px; line-height:1.6;
+    }
+
+    /* ---------- card grid (2x2) ---------- */
+    .card-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:22px;}
+    .card{
+      background:var(--bg-elev); border:1px solid var(--border); border-radius:var(--radius);
+      padding:26px; box-shadow:var(--shadow-sm); display:flex; flex-direction:column;
+      transition:transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+      position:relative; overflow:hidden; cursor:pointer;
+    }
+    .card:focus-visible{outline:2px solid var(--accent); outline-offset:3px;}
+    .card::before{
+      content:""; position:absolute; inset:0 0 auto 0; height:4px;
+      background:var(--accent);
+    }
+    .card:hover{transform:translateY(-4px); box-shadow:var(--shadow-lg); border-color:#c9d4ea;}
+
+    .card .icon{
+      width:48px; height:48px; display:grid; place-items:center;
+      color:#16305c; background:transparent; margin-bottom:16px;
+      transition:var(--transition);
+    }
+    .card:hover .icon{transform:scale(1.06);}
+
+    .card h3{font-size:17px; font-weight:700; letter-spacing:-.01em;}
+    .card .body{margin-top:9px; font-size:13.5px; line-height:1.6; color:var(--text-soft); flex:1;}
+    .card .status-badge{align-self:flex-start; margin-top:16px; font-size:12px; font-weight:700;
+      color:#15803d; background:#e7f5ec; border:1px solid #c6ead4;
+      padding:4px 12px; border-radius:6px; letter-spacing:.01em;}
+    .card .benefits{list-style:none; margin:15px 0 0; padding:0; display:flex;
+      flex-direction:column; gap:9px; flex:1;}
+    .card .benefits li{display:flex; align-items:flex-start; gap:9px;
+      font-size:12.8px; line-height:1.45; color:var(--text);}
+    .card .benefits li svg{flex-shrink:0; margin-top:2px; color:var(--teal);}
+    .card:nth-child(1) .benefits li svg{color:var(--accent);}
+    .card:nth-child(3) .benefits li svg{color:#7c3aed;}
+    .card:nth-child(4) .benefits li svg{color:#d97706;}
+    .card .view-details{
+      margin-top:20px; align-self:flex-start; display:inline-flex; align-items:center; gap:8px;
+      font-family:var(--font-ui); font-size:13px; font-weight:600; color:var(--accent);
+      background:transparent; border:1px solid var(--border); border-radius:9px;
+      padding:9px 16px; cursor:pointer; text-decoration:none; transition:var(--transition);
+    }
+    .card .view-details svg{width:13px; height:13px; transition:var(--transition);}
+    .card .view-details:hover{
+      background:var(--accent); color:#fff; border-color:var(--accent);
+      box-shadow:0 4px 12px rgba(37,99,235,.28);
+    }
+    .card .view-details:hover svg{transform:translateX(3px);}
+
+    /* ---------- bottom CTA ---------- */
+    .cta{margin-top:40px; display:flex; justify-content:center;}
+    .cta .open-editor{
+      display:inline-flex; align-items:center; gap:11px;
+      font-family:var(--font-ui); font-size:16px; font-weight:700; color:#fff; text-decoration:none;
+      background:linear-gradient(135deg,var(--accent),var(--accent-hover));
+      border:none; border-radius:12px; padding:16px 34px; cursor:pointer;
+      box-shadow:0 8px 24px rgba(37,99,235,.32); transition:var(--transition);
+    }
+    .cta .open-editor:hover{transform:translateY(-2px); box-shadow:0 14px 34px rgba(37,99,235,.42);}
+    .cta .open-editor:active{transform:translateY(0);}
+
+    footer{
+      text-align:center; color:var(--text-faint); font-size:12.5px;
+      padding:22px; border-top:1px solid var(--border);
+    }
+
+    /* ---------- responsive ---------- */
+    @media (max-width:760px){
+      .card-grid{grid-template-columns:1fr;}
+      .wrap{padding:32px 18px 28px;}
+      .topbar{padding:14px 18px;}
+      .cta .open-editor{width:100%; justify-content:center;}
+      .topbar .brand{font-size:15px;}
+    }
+    @media (min-width:761px) and (max-width:1024px){ .wrap{max-width:900px;} }
+  </style>
+</head>
+<body>
+  <!-- top bar -->
+  <div class="topbar">
+    <div class="logo" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+        <path d="M5 21V5a2 2 0 0 1 2-2h7l5 5v6"/>
+        <path d="M14.5 18.5 18 15l3 3-3.5 3.5H14.5z"/>
+      </svg>
+    </div>
+    <div class="brand">Smart Document Editor</div>
+    <div class="spacer"></div>
+    {% if current_user %}
+    <span style="font-size:13px;color:var(--text-soft);margin-right:4px">
+      Hi, <b style="color:var(--text)">{{ current_user }}</b></span>
+    {% endif %}
+    {% if current_role == 'admin' %}
+    <a class="ghost" href="{{ url_for('admin.users') }}" style="margin-right:8px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      Manage users
+    </a>
+    {% endif %}
+    <a class="ghost" href="{{ url_for('auth.logout') }}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>
+      </svg>
+      Log out
+    </a>
+  </div>
+
+  <main class="wrap">
+    <!-- page header -->
+    <header class="page-header">
+      <span class="eyebrow">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="5" cy="5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="5" r="2"/>
+          <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
+        </svg>
+        Dashboard
+      </span>
+      <h1>Smart Document Editor</h1>
+      <p>Your workspace for editing, validating and exporting spreadsheet and PDF
+         data. Review the sections below, then jump into the editor when you're ready.</p>
+    </header>
+
+    <!-- 2x2 card grid -->
+    <section class="card-grid" aria-label="Accessibility tools">
+
+      <!-- Card 1 — Validate / Merge Axe Tool Excels -->
+      <article class="card" data-href="/merge-axe-excels" role="link" tabindex="0"
+               aria-label="Validate / Merge Axe Tool Excels">
+        <div class="icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 3h5v5"/><path d="M4 20 21 3"/>
+            <path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/>
+          </svg>
+        </div>
+        <h3>Validate /Merge Axe Tool Excels</h3>
+        <p class="body">Combine multiple axe DevTools export workbooks into a single file.</p>
+        <span class="status-badge">Ready</span>
+      </article>
+
+      <!-- Card 2 — Generate Axe 2 Excel -->
+      <article class="card" data-href="/generate-axe2-excel" role="link" tabindex="0"
+               aria-label="Generate Axe 2 Excel">
+        <div class="icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M7 15v-3"/><path d="M12 15V9"/><path d="M17 15v-5"/>
+          </svg>
+        </div>
+        <h3>Generate Axe 2 Excel</h3>
+        <p class="body">Convert axe DevTools output into the S4Carlisle audit Excel format.</p>
+        <span class="status-badge">Ready</span>
+      </article>
+
+      <!-- Card 3 — Validate / Generate Delivery Outputs -->
+      <article class="card" data-href="/vpat-generate-report" role="link" tabindex="0"
+               aria-label="Validate / Generate Delivery Outputs">
+        <div class="icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 8 12 3 3 8l9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>
+          </svg>
+        </div>
+        <h3>Validate / Generate Delivery Outputs</h3>
+        <p class="body">Validate a WCAG audit workbook and export the client delivery
+          file (xlsx / csv) from the delivery template.</p>
+        <span class="status-badge">Ready</span>
+      </article>
+
+      <!-- Card 4 — Generate Excel for Downloadable -->
+      <article class="card" data-href="/generate-downloadable-excel" role="link" tabindex="0"
+               aria-label="Generate Excel for Downloadable">
+        <div class="icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 3h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2V4a1 1 0 0 1 1-1z"/>
+            <path d="M9 5h6"/><path d="M8 11h8"/><path d="M8 15h6"/>
+          </svg>
+        </div>
+        <h3>Generate Excel for Downloadable</h3>
+        <p class="body">Filter a Media Inventory for PDF, Word and PowerPoint documents
+          and export the audit rows.</p>
+        <span class="status-badge">Ready</span>
+      </article>
+
+      <!-- Card 5 — VPAT Editor -->
+      <article class="card" data-href="/vpat-editor" role="link" tabindex="0"
+               aria-label="VPAT Editor">
+        <div class="icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <path d="M14 2v6h6"/><path d="M9 13h4"/><path d="M9 17h6"/><path d="M12 11l2.5 2.5"/>
+          </svg>
+        </div>
+        <h3>VPAT Editor</h3>
+        <p class="body">Edit a VPAT 2.5 Accessibility Conformance Report (WCAG edition) —
+          metadata, standards, terms and every Level A/AA/AAA criterion — then export to PDF.</p>
+        <span class="status-badge">Ready</span>
+      </article>
+
+    </section>
+  </main>
+
+  <script>
+    // Make the entire card navigable (the inner button is a real link too).
+    document.querySelectorAll(".card[data-href]").forEach(function (card) {
+      var go = function () { window.location.href = card.getAttribute("data-href"); };
+      card.addEventListener("click", function (e) {
+        // if the inner <a> was clicked, let it handle navigation itself
+        if (e.target.closest("a")) return;
+        go();
+      });
+      card.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); }
+      });
+    });
+  </script>
+</body>
+</html>

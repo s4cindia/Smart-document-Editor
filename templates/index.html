@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block body %}
+{% set mode = mode|default('full') %}
+<!-- ===================== HEADER ===================== -->
+<header class="app-header">
+  <div class="brand">
+    <div class="logo"><i class="fa-solid fa-table-cells-large"></i></div>
+    <div>
+      <div class="name">{{ page_title or 'Smart Document Editor' }}</div>
+      <div class="sub">{% if mode == 'delivery' %}Delivery outputs{% elif mode == 'merge' %}Merge &amp; edit{% else %}Editor &amp; Validator{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="file-chip" id="fileChip" title="No file loaded">
+    <i class="fa-regular fa-file"></i>
+    <span id="fileChipName">No file loaded</span>
+  </div>
+
+  <div class="header-search">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <input type="text" id="globalSearch" placeholder="Search all data…  (Enter)">
+  </div>
+
+  <div class="status-dot" id="statusDot">
+    <span class="dot"></span><span id="statusDotText">Idle</span>
+  </div>
+
+  <a class="icon-btn" href="{{ url_for('main.dashboard') }}" title="Back to dashboard"
+     style="text-decoration:none"><i class="fa-solid fa-arrow-left-long"></i></a>
+
+  <button class="icon-btn" id="themeToggle" title="Toggle theme">
+    <i class="fa-solid fa-moon"></i>
+  </button>
+
+  {% if current_user %}
+  <a class="icon-btn" href="{{ url_for('auth.logout') }}"
+     title="Log out ({{ current_user }})" style="text-decoration:none">
+    <i class="fa-solid fa-right-from-bracket"></i>
+  </a>
+  {% endif %}
+</header>
+
+<!-- ===================== TOOLBAR ===================== -->
+<nav class="ribbon" id="ribbon" role="menubar" aria-label="Editor menu">
+
+  <!-- Data -->
+  <div class="ribbon-menu">
+    <button class="ribbon-top" data-menu="data" aria-haspopup="true" aria-expanded="false">
+      <i class="fa-solid fa-database"></i> Data <i class="fa-solid fa-chevron-down chev"></i></button>
+    <ul class="ribbon-dropdown" role="menu">
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="open-file"><i class="fa-solid fa-folder-open"></i>Import file</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="open-folder"><i class="fa-solid fa-folder-tree"></i>Open folder</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="recent"><i class="fa-solid fa-clock-rotate-left"></i>Recent files</button></li>
+      <li role="none"><div class="ribbon-sep"></div></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="statistics"><i class="fa-solid fa-calculator"></i>Data statistics</button></li>
+    </ul>
+  </div>
+
+  <!-- View -->
+  <div class="ribbon-menu">
+    <button class="ribbon-top" data-menu="view" aria-haspopup="true" aria-expanded="false">
+      <i class="fa-solid fa-eye"></i> View <i class="fa-solid fa-chevron-down chev"></i></button>
+    <ul class="ribbon-dropdown" role="menu">
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="columns"><i class="fa-solid fa-table-columns"></i>Columns&hellip;</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="show-columns"><i class="fa-solid fa-eye"></i>Show hidden columns</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="hide-columns"><i class="fa-solid fa-eye-slash"></i>Hide columns</button></li>
+      <li role="none"><div class="ribbon-sep"></div></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="sort"><i class="fa-solid fa-arrow-down-wide-short"></i>Sort</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="filter"><i class="fa-solid fa-filter"></i>Filter</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="search"><i class="fa-solid fa-magnifying-glass"></i>Search</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="clear-filters"><i class="fa-solid fa-filter-circle-xmark"></i>Reset view / clear highlight</button></li>
+    </ul>
+  </div>
+
+  <!-- Check -->
+  <div class="ribbon-menu">
+    <button class="ribbon-top" data-menu="check" aria-haspopup="true" aria-expanded="false">
+      <i class="fa-solid fa-shield-halved"></i> Check <i class="fa-solid fa-chevron-down chev"></i></button>
+    <ul class="ribbon-dropdown" role="menu">
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="validate"><i class="fa-solid fa-shield-halved"></i>Validate data</button></li>
+      {% if mode == 'delivery' %}
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="delivery-errors"><i class="fa-solid fa-triangle-exclamation"></i>Validation summary</button></li>
+      {% else %}
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="errors"><i class="fa-solid fa-triangle-exclamation"></i>Show errors</button></li>
+      {% endif %}
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="missing"><i class="fa-solid fa-circle-question"></i>Check missing values</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="duplicate-rows-check"><i class="fa-solid fa-copy"></i>Check duplicate rows</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="duplicate-finder"><i class="fa-solid fa-clone"></i>Find duplicates</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="quality"><i class="fa-solid fa-gauge-high"></i>Data quality</button></li>
+    </ul>
+  </div>
+
+  <!-- Rows -->
+  <div class="ribbon-menu">
+    <button class="ribbon-top" data-menu="rows" aria-haspopup="true" aria-expanded="false">
+      <i class="fa-solid fa-list"></i> Rows <i class="fa-solid fa-chevron-down chev"></i></button>
+    <ul class="ribbon-dropdown" role="menu">
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="edit"><i class="fa-solid fa-pen"></i>Edit row</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="add-row"><i class="fa-solid fa-plus"></i>Add row</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="duplicate-selected"><i class="fa-solid fa-clone"></i>Duplicate row</button></li>
+      <li role="none"><button class="ribbon-item danger" role="menuitem" data-action="delete-row"><i class="fa-solid fa-trash"></i>Delete row</button></li>
+      <li role="none"><div class="ribbon-sep"></div></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="tick-all"><i class="fa-solid fa-square-check"></i>Select all</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="untick-all"><i class="fa-regular fa-square"></i>Clear selection</button></li>
+      <li role="none"><div class="ribbon-sep"></div></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="undo" id="undoBtn"><i class="fa-solid fa-rotate-left"></i>Undo</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="redo" id="redoBtn"><i class="fa-solid fa-rotate-right"></i>Redo</button></li>
+    </ul>
+  </div>
+
+  <!-- Transform -->
+  <div class="ribbon-menu">
+    <button class="ribbon-top" data-menu="transform" aria-haspopup="true" aria-expanded="false">
+      <i class="fa-solid fa-wand-magic-sparkles"></i> Transform <i class="fa-solid fa-chevron-down chev"></i></button>
+    <ul class="ribbon-dropdown" role="menu">
+      {% if mode == 'merge' %}
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="merge-files"><i class="fa-solid fa-object-group"></i>Merge files</button></li>
+      <li role="none"><div class="ribbon-sep"></div></li>
+      {% endif %}
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="replace"><i class="fa-solid fa-right-left"></i>Find &amp; replace</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="regex-replace"><i class="fa-solid fa-asterisk"></i>Regex replace</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="trim"><i class="fa-solid fa-scissors"></i>Trim spaces</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="upper"><i class="fa-solid fa-arrow-up-a-z"></i>UPPERCASE</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="lower"><i class="fa-solid fa-arrow-down-a-z"></i>lowercase</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="proper"><i class="fa-solid fa-font"></i>Proper case</button></li>
+      <li role="none"><div class="ribbon-sep"></div></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="merge"><i class="fa-solid fa-object-group"></i>Merge columns</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="split"><i class="fa-solid fa-object-ungroup"></i>Split column</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="remove-special"><i class="fa-solid fa-eraser"></i>Clean data</button></li>
+    </ul>
+  </div>
+
+  <!-- Export -->
+  <div class="ribbon-menu">
+    <button class="ribbon-top" data-menu="export" aria-haspopup="true" aria-expanded="false">
+      <i class="fa-solid fa-file-export"></i> Export <i class="fa-solid fa-chevron-down chev"></i></button>
+    <ul class="ribbon-dropdown ribbon-dropdown-right" role="menu">
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="export-excel"><i class="fa-solid fa-file-excel"></i>Export Excel (.xlsx)</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="export-csv"><i class="fa-solid fa-file-csv"></i>Export CSV (.csv)</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="reports"><i class="fa-solid fa-file-lines"></i>Export report</button></li>
+    </ul>
+  </div>
+  <span class="ribbon-spacer"></span>
+  <span class="save-state" id="saveState" data-dirty="false"><i class="fa-solid fa-circle-check"></i> Saved</span>
+  <button class="ribbon-save" data-action="save" id="saveBtn" title="Save changes (Ctrl+S)" disabled>
+    <i class="fa-solid fa-floppy-disk"></i> Save</button>
+
+</nav>
+
+<!-- ===================== WORKSPACE ===================== -->
+<div class="workspace">
+  <div class="grid-wrap">
+    <div id="grid" class="ag-theme-quartz"></div>
+    <div class="busy-overlay" id="busy"><div class="spinner"></div></div>
+
+    <div class="empty-state" id="emptyState">
+      <div class="big-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+      <h2>Open a document to begin</h2>
+      <p>Load an Excel, CSV, TSV or PDF file. Edit visually, validate data,
+         find duplicates, transform in bulk, then export a clean file.</p>
+      <button class="btn primary" data-action="open-file">
+        <i class="fa-solid fa-folder-open"></i>&nbsp; Open File</button>
+    </div>
+  </div>
+
+  <!-- side panel -->
+  <aside class="panel" id="panel">
+    <div class="panel-head">
+      <i class="fa-solid fa-layer-group" id="panelIcon"></i>
+      <h3 id="panelTitle">Panel</h3>
+      <div class="close" data-action="close-panel"><i class="fa-solid fa-xmark"></i></div>
+    </div>
+    <div class="panel-body" id="panelBody"></div>
+  </aside>
+</div>
+
+<!-- ===================== STATUS BAR ===================== -->
+<footer class="status-bar" id="statusBar">
+  <span class="item"><i class="fa-regular fa-file"></i> <b id="sbFile">—</b></span>
+  <span class="item"><i class="fa-solid fa-database"></i> <b id="sbSize">—</b></span>
+  <span class="item">Rows <b id="sbRows">0</b></span>
+  <span class="item">Cols <b id="sbCols">0</b></span>
+  <span class="item">Selected <b id="sbSelected">0</b></span>
+  <span class="item">Filtered <b id="sbFiltered">0</b></span>
+  <span class="item push" id="sbValidation"><i class="fa-solid fa-shield-halved"></i> Not validated</span>
+</footer>
+
+<!-- hidden file input -->
+<input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.tsv,.pdf" style="display:none">
+<input type="file" id="mergeInput" accept=".xlsx,.xls,.csv" multiple style="display:none">
+
+<!-- generic modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modal">
+    <div class="modal-head">
+      <i class="fa-solid fa-sliders" id="modalIcon"></i>
+      <h3 id="modalTitle">Title</h3>
+      <div class="close" id="modalClose"><i class="fa-solid fa-xmark"></i></div>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+{% endblock %}

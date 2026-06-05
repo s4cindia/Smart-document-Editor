@@ -1,0 +1,592 @@
+{% extends "base.html" %}
+{% block title %}VPAT Editor — Smart Document Editor{% endblock %}
+{% block body %}
+<style>
+  /* VPAT page is a fixed full-screen panel; override the app shell's
+     body{overflow:hidden} only in a way that lets the inner area scroll. */
+  html, body{ height:100% !important; overflow:hidden !important; }
+
+  .vp{
+    --navy:#0f172a; --navy2:#1e293b; --ink:#0f172a; --body:#334155; --muted:#64748b;
+    --line:#e6e9ef; --bg:#eef1f6; --card:#ffffff; --accent:#4f46e5; --accent2:#6366f1;
+    --link:#2563eb; --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --na:#64748b; --ne:#94a3b8;
+    --radius:16px; --shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px -16px rgba(16,24,40,.25);
+    --font:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+    position:fixed; inset:0; display:flex; flex-direction:column;
+    background:
+      radial-gradient(1200px 400px at 80% -10%, rgba(99,102,241,.10), transparent 60%),
+      var(--bg);
+    font-family:var(--font); color:var(--body);
+  }
+  .vp *{ box-sizing:border-box; }
+
+  /* ---------- top bar ---------- */
+  .vp-top{ flex:none; display:flex; align-items:center; gap:12px; padding:10px 20px; min-height:64px;
+    flex-wrap:wrap; background:linear-gradient(100deg,var(--navy),var(--navy2)); color:#fff;
+    box-shadow:0 1px 0 rgba(0,0,0,.2); z-index:40; }
+  .vp-brand{ display:flex; align-items:baseline; gap:12px; min-width:0; }
+  .vp-brand .mark{ font-weight:800; font-size:19px; letter-spacing:-.01em; }
+  .vp-brand .sub{ font-size:12px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vp-build{ font-size:10.5px; font-weight:700; letter-spacing:.06em; color:#c7d2fe;
+    background:rgba(99,102,241,.22); border:1px solid rgba(129,140,248,.4);
+    padding:2px 8px; border-radius:999px; }
+  .vp-top .spacer{ flex:1; }
+  .btn{ display:inline-flex; align-items:center; gap:8px; padding:9px 16px; border:0; cursor:pointer;
+    border-radius:10px; font-family:inherit; font-weight:650; font-size:13.5px; color:#fff;
+    transition:transform .08s ease, background .15s ease, box-shadow .15s ease; white-space:nowrap; text-decoration:none; }
+  .btn:active{ transform:translateY(1px); }
+  .btn-primary{ background:var(--accent); box-shadow:0 6px 16px -8px rgba(79,70,229,.9); }
+  .btn-primary:hover{ background:#4338ca; }
+  .btn-ghost{ background:rgba(255,255,255,.12); }
+  .btn-ghost:hover{ background:rgba(255,255,255,.2); }
+  .btn-back{ background:transparent; border:1px solid rgba(255,255,255,.3); color:#e2e8f0; }
+  .btn-back:hover{ background:rgba(255,255,255,.1); }
+  .btn-browse{ background:#0ea5e9; }
+  .btn-browse:hover{ background:#0284c7; }
+
+  /* ---------- section tabs ---------- */
+  .vp-tabs{ flex:none; display:flex; align-items:center; gap:6px; padding:10px 24px;
+    background:rgba(255,255,255,.85); backdrop-filter:saturate(1.4) blur(6px);
+    border-bottom:1px solid var(--line); overflow-x:auto; z-index:30; }
+  .vp-tabs::-webkit-scrollbar{ height:0; }
+  .vp-tabs .lbl{ font-size:10.5px; letter-spacing:.14em; color:#94a3b8; font-weight:700; margin-right:6px; }
+  .vp-tab{ padding:8px 15px; border-radius:999px; color:var(--muted); font-size:13px; font-weight:650;
+    cursor:pointer; border:1px solid transparent; white-space:nowrap; transition:all .15s ease; }
+  .vp-tab:hover{ background:#fff; color:var(--ink); border-color:var(--line); }
+  .vp-tab.active{ background:var(--accent); color:#fff; box-shadow:0 6px 14px -8px rgba(79,70,229,.9); }
+  .vp-preview-tab{ margin-left:auto; display:inline-flex; align-items:center; gap:7px;
+    border:1px solid #c7d2fe !important; color:var(--accent) !important; background:#eef2ff !important; }
+  .vp-preview-tab:hover{ background:#e0e7ff !important; }
+  .vp-preview-tab.on{ background:var(--accent) !important; color:#fff !important; border-color:var(--accent) !important; }
+
+  /* Docked file preview panel (bottom-right corner) */
+  .vp-prev{ position:fixed; right:18px; bottom:18px; z-index:60;
+    width:min(720px, 94vw); height:min(60vh, 560px);
+    background:#fff; border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 24px 60px -20px rgba(15,23,42,.55); display:flex; flex-direction:column; overflow:hidden;
+    min-width:340px; min-height:220px; max-width:96vw; max-height:90vh; }
+  .vp-prev[hidden]{ display:none; }
+  .vp-prev-grip{ position:absolute; top:0; left:0; width:26px; height:26px; cursor:nwse-resize; z-index:6; }
+  .vp-prev-grip::before{ content:""; position:absolute; left:6px; top:6px; width:11px; height:11px;
+    border-left:3px solid #c7d2fe; border-top:3px solid #c7d2fe; border-radius:3px 0 0 0; }
+  .vp-prev-grip:hover::before{ border-color:#fff; }
+  .vp-prev.big{ width:min(1180px,96vw); height:90vh; }
+  .vp-prev-head{ flex:none; display:flex; align-items:center; gap:14px; padding:11px 14px 11px 30px;
+    background:var(--navy2); color:#fff; }
+  .vp-prev-title{ display:flex; flex-direction:column; line-height:1.25; min-width:0; }
+  .vp-prev-title strong{ font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+  .vp-prev-title span{ font-size:11px; color:#94a3b8; }
+  .vp-prev-legend{ display:flex; gap:8px; margin-left:auto; flex-wrap:wrap; }
+  .vp-prev-legend .lg{ font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; }
+  .lg-ref{ background:#dcfce7; color:#166534; } .lg-ver{ background:#dbeafe; color:#1e40af; }
+  .lg-sev{ background:#fef3c7; color:#92400e; }
+  .vp-prev-max, .vp-prev-close{ border:0; background:rgba(255,255,255,.14); color:#fff; width:28px; height:28px;
+    border-radius:8px; font-size:15px; cursor:pointer; line-height:1; }
+  .vp-prev-max:hover, .vp-prev-close:hover{ background:rgba(255,255,255,.28); }
+  .vp-prev-close{ font-size:18px; }
+  .vp-prev-body{ flex:1; overflow:auto; }
+  .vp-prev-body table{ border-collapse:collapse; font-size:12px; width:max-content; min-width:100%; table-layout:fixed; }
+  .vp-prev-body td, .vp-prev-body th{ border:1px solid #eef1f6; padding:6px 9px; vertical-align:middle;
+    max-width:300px; min-width:90px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; height:30px; }
+  .vp-prev-body tr.hdr td{ position:sticky; top:0; background:#f1f5f9; font-weight:800; color:var(--ink); z-index:1; }
+  .vp-prev-body td.rownum{ position:sticky; left:0; background:#f8fafc; color:#94a3b8; font-weight:700;
+    text-align:right; min-width:42px; width:42px; z-index:2; }
+  .vp-prev-body tr.hdr td.rownum{ z-index:3; }
+  .vp-prev-body td.c-ref{ background:#f0fdf4; } .vp-prev-body td.c-ver{ background:#eff6ff; }
+  .vp-prev-body td.c-sev{ background:#fffbeb; }
+  .vp-prev-body tr.hdr td.c-ref{ background:#dcfce7; } .vp-prev-body tr.hdr td.c-ver{ background:#dbeafe; }
+  .vp-prev-body tr.hdr td.c-sev{ background:#fef3c7; }
+
+  /* ---------- scroll area ---------- */
+  .vp-scroll{ flex:1; min-height:0; overflow-y:auto; scroll-behavior:smooth; }
+  .vp-inner{ max-width:1060px; margin:0 auto; padding:28px 28px 120px; }
+
+  .vp-card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:26px 28px; margin-bottom:22px; box-shadow:var(--shadow); scroll-margin-top:18px;
+    animation:vpRise .5s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes vpRise{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:none; } }
+  .vp-card:nth-child(2){ animation-delay:.04s; } .vp-card:nth-child(3){ animation-delay:.08s; }
+  .vp-card:nth-child(4){ animation-delay:.12s; } .vp-card:nth-child(5){ animation-delay:.16s; }
+  .vp-chead{ display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+  .vp-chead .ico{ width:36px; height:36px; flex:none; border-radius:10px; display:grid; place-items:center;
+    background:linear-gradient(140deg,#eef2ff,#e0e7ff); color:var(--accent); font-size:15px; }
+  .vp-card h2{ font-size:18px; font-weight:800; color:var(--ink); margin:0; letter-spacing:-.01em; }
+  .vp-card .hint{ color:var(--muted); font-size:13px; margin:2px 0 20px 48px; }
+
+  /* ---------- fields ---------- */
+  .fld{ margin-bottom:16px; }
+  .fld label{ display:block; font-size:11.5px; font-weight:700; color:#475569; letter-spacing:.02em;
+    text-transform:uppercase; margin-bottom:7px; }
+  .fld input, .fld textarea{ width:100%; padding:11px 13px; border:1px solid #d7dbe4; border-radius:11px;
+    font-size:14px; font-family:inherit; color:var(--ink); background:#fbfcfe; transition:border .15s, box-shadow .15s; }
+  .fld input:focus, .fld textarea:focus{ outline:0; border-color:var(--accent2);
+    box-shadow:0 0 0 4px rgba(99,102,241,.14); background:#fff; }
+  .fld textarea{ resize:vertical; min-height:76px; line-height:1.6; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+
+  /* ---------- standards ---------- */
+  .std{ width:100%; border-collapse:separate; border-spacing:0 8px; }
+  .std th{ color:var(--muted); font-size:11.5px; font-weight:700; letter-spacing:.04em; text-align:left;
+    padding:0 12px; text-transform:uppercase; }
+  .std th:not(:first-child){ text-align:center; }
+  .std td{ padding:14px 12px; font-size:14.5px; vertical-align:middle; background:#fbfcfe;
+    border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .std td:not(:first-child){ text-align:center; }
+  .std td:first-child{ border-left:1px solid var(--line); border-radius:12px 0 0 12px; font-weight:700; color:var(--ink); }
+  .std td:last-child{ border-right:1px solid var(--line); border-radius:0 12px 12px 0; }
+  .seg{ display:inline-flex; border:1px solid #d7dbe4; border-radius:10px; overflow:hidden; background:#fff; }
+  .seg button{ border:0; background:transparent; padding:7px 18px; font-size:12.5px; font-weight:700;
+    cursor:pointer; color:var(--muted); transition:all .12s; }
+  .seg button.on-yes{ background:var(--ok); color:#fff; }
+  .seg button.on-no{ background:var(--bad); color:#fff; }
+
+  /* ---------- terms ---------- */
+  .term{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:12px; align-items:stretch; }
+  .term .tn{ font-weight:700; color:var(--ink); min-height:72px; }
+  .term textarea{ min-height:72px; }
+
+  /* ---------- criteria ---------- */
+  .crit-tools{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 16px 48px; }
+  .crit-filter{ flex:1; min-width:200px; max-width:340px; position:relative; }
+  .crit-filter input{ width:100%; padding:9px 12px 9px 34px; border:1px solid #d7dbe4; border-radius:10px;
+    font-size:13px; font-family:inherit; background:#fbfcfe; }
+  .crit-filter input:focus{ outline:0; border-color:var(--accent2); box-shadow:0 0 0 4px rgba(99,102,241,.14); }
+  .crit-filter svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%); color:#94a3b8; }
+  .sumchips{ display:flex; gap:6px; flex-wrap:wrap; }
+  .chip{ font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid transparent; }
+  .chip b{ font-weight:800; }
+  .chip.s{ background:#dcfce7; color:#166534; } .chip.p{ background:#fef3c7; color:#92400e; }
+  .chip.d{ background:#fee2e2; color:#991b1b; } .chip.n{ background:#e2e8f0; color:#475569; }
+  .chip.e{ background:#f1f5f9; color:#64748b; }
+
+  .crit{ border:1px solid var(--line); border-left:5px solid var(--bar,#e2e8f0); border-radius:13px;
+    padding:15px 17px; margin-bottom:12px; background:#fcfdff; transition:box-shadow .15s, border-color .15s; }
+  .crit:hover{ box-shadow:0 8px 22px -16px rgba(16,24,40,.4); }
+  .crit-head{ display:flex; gap:14px; align-items:flex-start; }
+  .crit-head .name{ flex:1; min-width:0; }
+  .crit-head .name a{ color:var(--link); font-weight:750; font-size:14.5px; text-decoration:none; }
+  .crit-head .name a:hover{ text-decoration:underline; }
+  .crit-head .name a::after{ content:"\2197"; font-size:11px; margin-left:5px; opacity:.6; }
+  .crit-head .name .plain{ font-weight:750; font-size:14.5px; color:var(--ink); }
+  .crit-head select{ width:188px; flex:none; padding:9px 11px; border:1px solid #cfd4df; border-radius:10px;
+    font-size:13px; font-weight:650; font-family:inherit; cursor:pointer; background:#fff; }
+  .crit textarea{ width:100%; margin-top:11px; min-height:54px; border:1px solid #dde1e9; border-radius:10px;
+    padding:10px 12px; font-size:13px; font-family:inherit; resize:vertical; line-height:1.55; background:#fbfcfe; }
+  .crit textarea:focus{ outline:0; border-color:var(--accent2); box-shadow:0 0 0 4px rgba(99,102,241,.12); background:#fff; }
+
+  /* ---------- scroll-to-top ---------- */
+  .vp-toTop{ position:fixed; right:26px; bottom:26px; width:46px; height:46px; border-radius:50%;
+    border:0; cursor:pointer; background:var(--navy2); color:#fff; font-size:16px; z-index:50;
+    box-shadow:0 10px 24px -10px rgba(0,0,0,.6); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
+  .vp-toTop.show{ opacity:1; pointer-events:auto; }
+  .vp-toTop:hover{ transform:translateY(-2px); }
+
+  @media(max-width:860px){
+    .vp-top{ padding:0 14px; gap:10px; } .vp-brand .sub{ display:none; }
+    .btn{ padding:8px 12px; font-size:12.5px; }
+    .vp-inner{ padding:18px 14px 110px; } .vp-card{ padding:20px 16px; }
+    .vp-card .hint, .crit-tools{ margin-left:0; }
+    .grid2{ grid-template-columns:1fr; } .term{ grid-template-columns:1fr; }
+    .crit-head{ flex-direction:column; } .crit-head select{ width:100%; }
+  }
+</style>
+
+<div class="vp">
+  <!-- top bar -->
+  <header class="vp-top">
+    <div class="vp-brand">
+      <span class="mark">VPAT Editor</span>
+      <span class="sub">Accessibility Conformance Report · WCAG / VPAT 2.5</span>
+    </div>
+    <span class="vp-build">BUILD {{ build }}</span>
+    <div class="spacer"></div>
+    <a class="btn btn-back" href="{{ url_for('main.dashboard') }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> Dashboard</a>
+    <button class="btn btn-browse" id="vpBrowse" title="Upload an audit Excel and auto-fill"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M12 3v13"/><path d="M7 8l5-5 5 5"/></svg> Browse</button>
+    <button class="btn btn-ghost" id="vpOpen"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg> Open</button>
+    <button class="btn btn-ghost" id="vpSave"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 3v5h7"/><path d="M8 14h8v6H8z"/></svg> Save Draft</button>
+    <button class="btn btn-primary" id="vpExport"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h8l4 4v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v4h4"/><path d="M8 13h8"/><path d="M8 17h5"/></svg> Export PDF</button>
+    <input type="file" id="vpDraftInput" accept=".json" hidden>
+    <input type="file" id="vpXlsxInput" accept=".xlsx,.xls,.csv,.tsv" hidden>
+  </header>
+
+  <!-- section tabs -->
+  <nav class="vp-tabs" id="vpTabs">
+    <span class="lbl">SECTIONS</span>
+    <button class="vp-tab active" data-go="sec-overview">Overview</button>
+    <button class="vp-tab" data-go="sec-standards">Standards</button>
+    <button class="vp-tab" data-go="sec-terms">Terms</button>
+    <button class="vp-tab" data-go="sec-t1">Table 1 · Level A</button>
+    <button class="vp-tab" data-go="sec-t2">Table 2 · Level AA</button>
+    <button class="vp-tab" data-go="sec-t3">Table 3 · Level AAA</button>
+    <button class="vp-tab" data-go="sec-legal">Legal</button>
+    <button class="vp-tab vp-preview-tab" id="vpPreviewToggle" title="Preview the uploaded audit file">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      Preview file
+    </button>
+  </nav>
+
+  <!-- scroll area -->
+  <div class="vp-scroll" id="vpScroller">
+    <div class="vp-inner">
+
+      <section class="vp-card" id="sec-overview">
+        <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg></div>
+          <h2>Report Overview</h2></div>
+        <p class="hint">Product metadata that appears at the top of the report.</p>
+        <div class="fld"><label>Report Title</label><input data-f="title"></div>
+        <div class="fld"><label>Subtitle</label><input data-f="subtitle"></div>
+        <div class="grid2">
+          <div class="fld"><label>Name of Product / Version</label><input data-f="product"></div>
+          <div class="fld"><label>Report Date</label><input data-f="report_date"></div>
+        </div>
+        <div class="fld"><label>Product Description</label><textarea data-f="description"></textarea></div>
+        <div class="fld"><label>Contact Information</label><input data-f="contact"></div>
+        <div class="fld"><label>Notes</label><textarea data-f="notes" style="min-height:140px"></textarea></div>
+        <div class="fld"><label>Evaluation Methods Used (one per line)</label><textarea data-f="eval_methods" style="min-height:120px"></textarea></div>
+      </section>
+
+      <section class="vp-card" id="sec-standards">
+        <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10"/><path d="M10 12h10"/><path d="M10 18h10"/><path d="M3.5 6l1.2 1.2L7 5"/><path d="M3.5 12l1.2 1.2L7 11"/><path d="M3.5 18l1.2 1.2L7 17"/></svg></div>
+          <h2>Applicable Standards / Guidelines</h2></div>
+        <p class="hint">Toggle which WCAG versions and levels this report covers.</p>
+        <table class="std">
+          <thead><tr><th>WCAG Version</th><th>Level A</th><th>Level AA</th><th>Level AAA</th></tr></thead>
+          <tbody id="vpStandards"></tbody>
+        </table>
+      </section>
+
+      <section class="vp-card" id="sec-terms">
+        <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4a2 2 0 0 1 2-2h11v16H7a2 2 0 0 0-2 2z"/><path d="M5 20a2 2 0 0 1 2-2h11"/></svg></div>
+          <h2>Conformance Terms</h2></div>
+        <p class="hint">The terms used in the Conformance Level column. Definitions are editable.</p>
+        <div id="vpTerms"></div>
+      </section>
+
+      <section class="vp-card" id="sec-t1">
+        <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M9 4v16"/></svg></div>
+          <h2>Table 1 · Success Criteria, Level A</h2></div>
+        <p class="hint">Choose a conformance level and edit the remarks for each criterion.</p>
+        <div class="crit-tools">
+          <div class="crit-filter"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" placeholder="Filter criteria…" data-filter="level_a"></div>
+          <div class="sumchips" data-sum="level_a"></div>
+        </div>
+        <div data-level="level_a"></div>
+      </section>
+
+      <section class="vp-card" id="sec-t2">
+        <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M9 4v16"/></svg></div>
+          <h2>Table 2 · Success Criteria, Level AA</h2></div>
+        <p class="hint">Choose a conformance level and edit the remarks for each criterion.</p>
+        <div class="crit-tools">
+          <div class="crit-filter"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" placeholder="Filter criteria…" data-filter="level_aa"></div>
+          <div class="sumchips" data-sum="level_aa"></div>
+        </div>
+        <div data-level="level_aa"></div>
+      </section>
+
+      <section class="vp-card" id="sec-t3">
+        <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M9 4v16"/></svg></div>
+          <h2>Table 3 · Success Criteria, Level AAA</h2></div>
+        <p class="hint">Choose a conformance level and edit the remarks for each criterion.</p>
+        <div class="crit-tools">
+          <div class="crit-filter"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" placeholder="Filter criteria…" data-filter="level_aaa"></div>
+          <div class="sumchips" data-sum="level_aaa"></div>
+        </div>
+        <div data-level="level_aaa"></div>
+      </section>
+
+      <section class="vp-card" id="sec-legal">
+        <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M7 7h10"/><path d="M7 7l-3.5 6.5a3 3 0 0 0 7 0z"/><path d="M17 7l3.5 6.5a3 3 0 0 1-7 0z"/><path d="M8 21h8"/></svg></div>
+          <h2>Legal Disclaimer</h2></div>
+        <p class="hint">Boilerplate that appears at the end of the report.</p>
+        <div class="fld"><label>Disclaimer Heading</label><input data-f="legal_title"></div>
+        <div class="fld"><label>Disclaimer Body</label><textarea data-f="legal_text" style="min-height:170px"></textarea></div>
+      </section>
+
+    </div>
+  </div>
+
+  <button class="vp-toTop" id="vpToTop" title="Back to top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></button>
+
+  <!-- Docked file preview (opens only when Preview file is clicked) -->
+  <aside class="vp-prev" id="vpPrev" hidden>
+    <div class="vp-prev-grip" id="vpPrevGrip" title="Drag to resize"></div>
+    <div class="vp-prev-head">
+      <div class="vp-prev-title"><strong id="vpPrevName">Uploaded file</strong>
+        <span id="vpPrevMeta"></span></div>
+      <div class="vp-prev-legend">
+        <span class="lg lg-ref">WCAG Reference</span>
+        <span class="lg lg-ver">WCAG Version</span>
+        <span class="lg lg-sev">Severity</span>
+      </div>
+      <button class="vp-prev-max" id="vpPrevMax" title="Maximize / restore size">&#10530;</button>
+      <button class="vp-prev-close" id="vpPrevClose" title="Close preview">&times;</button>
+    </div>
+    <div class="vp-prev-body" id="vpPrevBody"></div>
+  </aside>
+</div>
+
+<script>
+(function(){
+  const CONF = ["Supports","Partially Supports","Does Not Support","Not Applicable","Not Evaluated"];
+  const BAR = { "Supports":"#16a34a","Partially Supports":"#d97706","Does Not Support":"#dc2626",
+    "Not Applicable":"#64748b","Not Evaluated":"#cbd5e1","":"#e2e8f0" };
+  const CHIPCLS = { "Supports":"s","Partially Supports":"p","Does Not Support":"d","Not Applicable":"n","Not Evaluated":"e" };
+  const W3C22="https://www.w3.org/WAI/WCAG22/Understanding/", W3C21="https://www.w3.org/WAI/WCAG21/Understanding/";
+  const SLUGS = {{ slugs | tojson }};
+  let DATA = {{ data | tojson }};
+  const filters = { level_a:"", level_aa:"", level_aaa:"" };
+
+  function scUrl(crit){ const sc=(crit||"").trim().split(/\s+/)[0]; const slug=SLUGS[sc];
+    return slug ? (sc==="4.1.1"?W3C21:W3C22)+slug+".html" : null; }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function toast(m,t){ if(window.SDE&&SDE.toast) SDE.toast(m,t||"info"); else alert(m); }
+
+  function renderAll(){
+    document.querySelectorAll("[data-f]").forEach(el=>{
+      el.value = DATA[el.dataset.f]!=null ? DATA[el.dataset.f] : "";
+      el.oninput = ()=>{ DATA[el.dataset.f]=el.value; };
+    });
+    renderStandards(); renderTerms();
+    ["level_a","level_aa","level_aaa"].forEach(renderCriteria);
+  }
+
+  function renderStandards(){
+    const tb=document.getElementById("vpStandards"); tb.innerHTML="";
+    const names={ "2.0":"WCAG 2.0","2.1":"WCAG 2.1","2.2":"WCAG 2.2" };
+    ["2.0","2.1","2.2"].forEach(ver=>{
+      const tr=document.createElement("tr");
+      const c0=document.createElement("td"); c0.textContent=names[ver]; tr.appendChild(c0);
+      ["A","AA","AAA"].forEach(lvl=>{
+        const td=document.createElement("td");
+        const seg=document.createElement("div"); seg.className="seg";
+        const y=document.createElement("button"); y.textContent="Yes";
+        const n=document.createElement("button"); n.textContent="No";
+        const cur=()=>(DATA.standards[ver]||{})[lvl]||"No";
+        const paint=()=>{ y.className=cur()==="Yes"?"on-yes":""; n.className=cur()==="No"?"on-no":""; };
+        y.onclick=()=>{ DATA.standards[ver][lvl]="Yes"; paint(); };
+        n.onclick=()=>{ DATA.standards[ver][lvl]="No"; paint(); };
+        paint(); seg.appendChild(y); seg.appendChild(n); td.appendChild(seg); tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+  }
+
+  function renderTerms(){
+    const box=document.getElementById("vpTerms"); box.innerHTML="";
+    (DATA.terms||[]).forEach((t,i)=>{
+      const row=document.createElement("div"); row.className="term";
+      const name=document.createElement("input"); name.className="tn"; name.value=t[0]||"";
+      const def=document.createElement("textarea"); def.value=t[1]||"";
+      name.oninput=()=>{ DATA.terms[i][0]=name.value; };
+      def.oninput=()=>{ DATA.terms[i][1]=def.value; };
+      row.appendChild(name); row.appendChild(def); box.appendChild(row);
+    });
+  }
+
+  function renderSummary(level){
+    const host=document.querySelector(`[data-sum="${level}"]`); if(!host) return;
+    const counts={}; (DATA[level]||[]).forEach(r=>{ counts[r[1]]=(counts[r[1]]||0)+1; });
+    host.innerHTML = CONF.filter(c=>counts[c]).map(c=>
+      `<span class="chip ${CHIPCLS[c]}"><b>${counts[c]}</b> ${esc(c)}</span>`).join("");
+  }
+
+  function renderCriteria(level){
+    const host=document.querySelector(`[data-level="${level}"]`); host.innerHTML="";
+    const q=(filters[level]||"").toLowerCase();
+    let shown=0;
+    (DATA[level]||[]).forEach((row,i)=>{
+      const crit=row[0], conf=row[1], remarks=row[2];
+      if(q && !(String(crit).toLowerCase().includes(q) || String(remarks).toLowerCase().includes(q))) return;
+      shown++;
+      const url=scUrl(crit);
+      const box=document.createElement("div"); box.className="crit"; box.style.setProperty("--bar",BAR[conf]||"#e2e8f0");
+      const head=document.createElement("div"); head.className="crit-head";
+      const name=document.createElement("div"); name.className="name";
+      name.innerHTML = url ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${esc(crit)}</a>`
+                           : `<span class="plain">${esc(crit)}</span>`;
+      const sel=document.createElement("select");
+      CONF.forEach(o=>{ const op=document.createElement("option"); op.value=o; op.textContent=o; if(o===conf) op.selected=true; sel.appendChild(op); });
+      sel.onchange=()=>{ DATA[level][i][1]=sel.value; box.style.setProperty("--bar",BAR[sel.value]||"#e2e8f0"); renderSummary(level); };
+      head.appendChild(name); head.appendChild(sel); box.appendChild(head);
+      const ta=document.createElement("textarea"); ta.value=remarks||""; ta.placeholder="Remarks and explanations…";
+      ta.oninput=()=>{ DATA[level][i][2]=ta.value; };
+      box.appendChild(ta); host.appendChild(box);
+    });
+    if(shown===0){ const e=document.createElement("div"); e.style.cssText="color:#94a3b8;font-size:13px;padding:10px 2px;";
+      e.textContent="No criteria match your filter."; host.appendChild(e); }
+    renderSummary(level);
+  }
+
+  // filters
+  document.querySelectorAll("[data-filter]").forEach(inp=>{
+    inp.addEventListener("input", ()=>{ filters[inp.dataset.filter]=inp.value; renderCriteria(inp.dataset.filter); });
+  });
+
+  /* ---- section tabs: scroll within the content area + active highlight ---- */
+  const scroller=document.getElementById("vpScroller");
+  const tabs=Array.from(document.querySelectorAll("#vpTabs .vp-tab"));
+  tabs.forEach(t=>{
+    t.addEventListener("click", ()=>{
+      const el=document.getElementById(t.dataset.go);
+      if(el&&scroller){
+        const top=scroller.scrollTop + el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 10;
+        scroller.scrollTo({ top, behavior:"smooth" });
+        tabs.forEach(x=>x.classList.toggle("active", x===t));
+      }
+    });
+  });
+  const sections=tabs.map(t=>document.getElementById(t.dataset.go)).filter(Boolean);
+  if("IntersectionObserver" in window && scroller){
+    const obs=new IntersectionObserver(es=>{ es.forEach(e=>{ if(e.isIntersecting)
+      tabs.forEach(x=>x.classList.toggle("active", x.dataset.go===e.target.id)); }); },
+      {root:scroller, rootMargin:"-12% 0px -75% 0px", threshold:0});
+    sections.forEach(s=>obs.observe(s));
+  }
+
+  /* ---- scroll-to-top ---- */
+  const toTop=document.getElementById("vpToTop");
+  scroller.addEventListener("scroll", ()=>{ toTop.classList.toggle("show", scroller.scrollTop>400); });
+  toTop.onclick=()=>scroller.scrollTo({top:0,behavior:"smooth"});
+
+  /* ---- Browse: upload an audit Excel and auto-fill standards + criteria ---- */
+  const LVL_ORDER={A:1,AA:2,AAA:3}, TBL_LVL={level_a:"A",level_aa:"AA",level_aaa:"AAA"};
+  let lastPreview = null;
+  function applyAnalysis(res){
+    lastPreview = res.preview || null;
+    updatePreviewAvailability();
+    const status = res.criteria_status || {};
+    let matched=0, maxLvl=0;
+    ["level_a","level_aa","level_aaa"].forEach(level=>{
+      (DATA[level]||[]).forEach((row,i)=>{
+        const sc=String(row[0]||"").trim().split(/\s+/)[0];
+        if(status[sc]){
+          DATA[level][i][1]=status[sc]; matched++;
+          maxLvl=Math.max(maxLvl, LVL_ORDER[TBL_LVL[level]]);
+        }
+      });
+    });
+    const versions = Array.isArray(res.versions) ? res.versions : [];
+    // Cap = highest level among matched criteria OR the level encoded in the
+    // version/standard tags (e.g. "wcag21aa" → AA); default to AA if unknown.
+    const tagRank = {A:1,AA:2,AAA:3}[res.tag_level] || 0;
+    const cap = Math.max(maxLvl, tagRank) || 2;
+    // Ensure the standards object is well-formed before writing to it.
+    if(!DATA.standards || typeof DATA.standards!=="object") DATA.standards={};
+    ["2.0","2.1","2.2"].forEach(ver=>{
+      if(!DATA.standards[ver] || typeof DATA.standards[ver]!=="object") DATA.standards[ver]={};
+      ["A","AA","AAA"].forEach(lvl=>{
+        DATA.standards[ver][lvl] = (versions.includes(ver) && LVL_ORDER[lvl]<=cap) ? "Yes":"No";
+      });
+    });
+    try { renderAll(); } catch(e) { console.error("render after analyse", e); }
+    const vtxt = versions.length ? ("WCAG "+versions.join(", ")) : "no WCAG version detected";
+    toast(`Analysed audit · ${vtxt} · ${matched} criteria set from ${res.rows} findings`, matched||versions.length ? "success":"info");
+  }
+  document.getElementById("vpBrowse").onclick=()=>document.getElementById("vpXlsxInput").click();
+  document.getElementById("vpXlsxInput").onchange=async (e)=>{
+    const f=e.target.files[0]; if(!f) return; const fd=new FormData(); fd.append("file",f);
+    toast("Analysing "+f.name+"…","info");
+    try{
+      const r=await fetch("/api/vpat-editor/analyze",{method:"POST",body:fd});
+      const j=await r.json(); if(!j.ok) throw new Error(j.error||"Analysis failed");
+      applyAnalysis(j);
+    }catch(err){ toast(err.message,"error"); }
+    e.target.value="";
+  };
+
+  /* ---- file preview panel (opens on demand, bottom-right corner) ---- */
+  const prev=document.getElementById("vpPrev");
+  const prevToggle=document.getElementById("vpPreviewToggle");
+  function updatePreviewAvailability(){
+    if(lastPreview){ prevToggle.style.opacity="1"; prevToggle.style.pointerEvents="auto"; }
+  }
+  function colClass(ci, det){
+    if(!det) return "";
+    if(ci===det.reference) return "c-ref";
+    if(ci===det.version) return "c-ver";
+    if(ci===det.severity) return "c-sev";
+    return "";
+  }
+  function buildPreview(){
+    const p=lastPreview; const body=document.getElementById("vpPrevBody");
+    if(!p){ body.innerHTML="<div style='padding:16px;color:#64748b;font-size:13px'>No file analysed yet. Use <b>Browse</b> to upload an audit file.</div>"; return; }
+    document.getElementById("vpPrevName").textContent=p.filename||"Uploaded file";
+    document.getElementById("vpPrevMeta").textContent=
+      `sheet: ${p.sheet} · showing ${p.rows.length} of ${p.total_rows} rows`;
+    let html="<table>";
+    p.rows.forEach((row,ri)=>{
+      html += `<tr>`;
+      html += `<td class="rownum">${ri+1}</td>`;
+      for(let ci=0; ci<p.ncol; ci++){
+        const cc=colClass(ci, p.detected);
+        const val = row[ci]!=null?row[ci]:"";
+        html += `<td class="${cc}" title="${esc(val)}">${esc(val)}</td>`;
+      }
+      html += "</tr>";
+    });
+    html+="</table>"; body.innerHTML=html;
+  }
+  function openPreview(){ buildPreview(); prev.hidden=false; prevToggle.classList.add("on"); }
+  function closePreview(){ prev.hidden=true; prevToggle.classList.remove("on"); }
+  prevToggle.onclick=()=>{
+    if(!lastPreview){ toast("Upload an audit file with Browse first, then preview it here.","info"); return; }
+    if(prev.hidden) openPreview(); else closePreview();
+  };
+  document.getElementById("vpPrevClose").onclick=closePreview;
+  document.getElementById("vpPrevMax").onclick=()=>{
+    prev.style.width=""; prev.style.height=""; prev.classList.toggle("big");
+  };
+  updatePreviewAvailability();
+
+  /* drag the top-left grip to resize the panel (grows toward the viewport) */
+  const grip=document.getElementById("vpPrevGrip");
+  let rz=null;
+  grip.addEventListener("pointerdown", (e)=>{
+    rz={x:e.clientX, y:e.clientY, w:prev.offsetWidth, h:prev.offsetHeight};
+    try{ grip.setPointerCapture(e.pointerId); }catch(_){}
+    e.preventDefault();
+  });
+  window.addEventListener("pointermove", (e)=>{
+    if(!rz) return;
+    const w=Math.min(window.innerWidth-40,  Math.max(340, rz.w + (rz.x - e.clientX)));
+    const h=Math.min(window.innerHeight-40, Math.max(220, rz.h + (rz.y - e.clientY)));
+    prev.style.width=w+"px"; prev.style.height=h+"px";
+  });
+  window.addEventListener("pointerup", ()=>{ rz=null; });
+
+  /* ---- Export / Save / Open ---- */
+  document.getElementById("vpExport").onclick=async ()=>{
+    try{
+      const r=await fetch("/api/vpat-editor/export-pdf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(DATA)});
+      const j=await r.json(); if(!j.ok) throw new Error(j.error||"Export failed");
+      const a=document.createElement("a"); a.href=j.url; a.download=j.file; document.body.appendChild(a); a.click(); a.remove();
+      toast("PDF exported: "+j.file,"success");
+    }catch(e){ toast(e.message,"error"); }
+  };
+  document.getElementById("vpSave").onclick=async ()=>{
+    try{
+      const r=await fetch("/api/vpat-editor/save-draft",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(DATA)});
+      const j=await r.json(); if(!j.ok) throw new Error(j.error||"Save failed");
+      const a=document.createElement("a"); a.href=j.url; a.download=j.file; document.body.appendChild(a); a.click(); a.remove();
+      toast("Draft saved: "+j.file,"success");
+    }catch(e){ toast(e.message,"error"); }
+  };
+  document.getElementById("vpOpen").onclick=()=>document.getElementById("vpDraftInput").click();
+  document.getElementById("vpDraftInput").onchange=async (e)=>{
+    const f=e.target.files[0]; if(!f) return; const fd=new FormData(); fd.append("file",f);
+    try{
+      const r=await fetch("/api/vpat-editor/open-draft",{method:"POST",body:fd});
+      const j=await r.json(); if(!j.ok) throw new Error(j.error||"Open failed");
+      DATA=j.data; renderAll(); toast("Draft loaded","success");
+    }catch(err){ toast(err.message,"error"); }
+    e.target.value="";
+  };
+
+  renderAll();
+})();
+</script>
+{% endblock %}

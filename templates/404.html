@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page not found — Smart Document Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --font-ui:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      --accent:#2563eb; --accent-hover:#1d4ed8; --bg:#f4f6fb; --bg-elev:#ffffff;
+      --border:#e4e8f0; --text:#1f2430; --text-soft:#5a6477;
+      --shadow:0 4px 16px rgba(16,24,40,.08);
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;}
+    body{font-family:var(--font-ui); color:var(--text);
+      background:radial-gradient(1000px 460px at 50% -10%, rgba(37,99,235,.10), transparent 60%), var(--bg);
+      -webkit-font-smoothing:antialiased; min-height:100%;
+      display:flex; align-items:center; justify-content:center; padding:28px; text-align:center;}
+    .box{max-width:440px;}
+    .code{font-size:84px; font-weight:800; letter-spacing:-.03em; line-height:1;
+      background:linear-gradient(135deg,var(--accent),#0d9488);
+      -webkit-background-clip:text; background-clip:text; color:transparent;}
+    h1{font-size:22px; font-weight:800; margin-top:10px;}
+    p{font-size:14.5px; color:var(--text-soft); margin-top:10px; line-height:1.6;}
+    .btn{display:inline-flex; align-items:center; gap:9px; margin-top:24px;
+      font-size:14px; font-weight:700; color:#fff; text-decoration:none;
+      background:linear-gradient(135deg,var(--accent),var(--accent-hover));
+      border-radius:10px; padding:13px 26px; box-shadow:0 8px 22px rgba(37,99,235,.30);
+      transition:transform 160ms;}
+    .btn:hover{transform:translateY(-1px);}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="code">404</div>
+    <h1>Page not found</h1>
+    <p>The page you're looking for doesn't exist or may have moved.
+       Let's get you back to your workspace.</p>
+    <a class="btn" href="{{ url_for('main.dashboard') }}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/>
+      </svg>
+      Back to dashboard
+    </a>
+  </div>
+</body>
+</html>

@@ -1,0 +1,766 @@
+/* =========================================================================
+   Smart Document Editor & Validator — core application logic
+   Shared namespace: window.SDE
+   ========================================================================= */
+window.SDE = window.SDE || {};
+SDE.columns = [];          // current data column names
+SDE.columnDefs = [];       // AG Grid column defs from server
+SDE.actions = SDE.actions || {};   // action handlers (extended by other files)
+
+/* ---------- HTTP helpers ------------------------------------------------ */
+SDE.api = async function (path, opts = {}) {
+  const res = await fetch(path, opts);
+  let data;
+  try { data = await res.json(); } catch { data = { ok: false, error: "Bad response" }; }
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || `Request failed (${res.status})`);
+  }
+  return data;
+};
+SDE.post = async function (path, body) {
+  const data = await SDE.api(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  // Mark "unsaved changes" whenever a data-mutating call succeeds
+  // (but not for preview-only transform calls).
+  const mutates = /\/api\/(data\/(cell|add-row|delete-rows|duplicate-rows|undo|redo)|transform\/|duplicates\/drop)/;
+  if (mutates.test(path) && !(body && body.preview)) SDE.markDirty();
+  return data;
+};
+SDE.get = (path) => SDE.api(path);
+
+/* ---------- Save state (dirty/clean indicator) -------------------------- */
+SDE._dirty = false;
+SDE.updateSaveUI = function () {
+  const badge = document.getElementById("saveState");
+  const btn = document.getElementById("saveBtn");
+  if (badge) {
+    badge.dataset.dirty = SDE._dirty ? "true" : "false";
+    badge.innerHTML = SDE._dirty
+      ? '<i class="fa-solid fa-circle"></i> Unsaved changes'
+      : '<i class="fa-solid fa-circle-check"></i> Saved';
+  }
+  if (btn) btn.disabled = !SDE._dirty;
+};
+SDE.markDirty = function () { SDE._dirty = true; SDE.updateSaveUI(); };
+SDE.markClean = function () { SDE._dirty = false; SDE.updateSaveUI(); };
+
+/* ---------- Notifications ----------------------------------------------- */
+SDE.toast = function (msg, type = "info") {
+  const colors = {
+    info: "#2563eb", success: "#16a34a", error: "#dc2626", warn: "#d97706",
+  };
+  if (typeof Toastify === "undefined") { console.log("[toast]", type, msg); return; }
+  Toastify({
+    text: msg, duration: 3200, gravity: "bottom", position: "right",
+    style: { background: colors[type] || colors.info, borderRadius: "9px",
+      boxShadow: "0 8px 30px rgba(0,0,0,.18)", fontFamily: "Plus Jakarta Sans" },
+  }).showToast();
+};
+SDE.busy = function (on) { document.getElementById("busy").classList.toggle("show", !!on); };
+
+/* ---------- Modal ------------------------------------------------------- */
+SDE.modal = function ({ title, icon = "fa-sliders", bodyHTML, buttons = [], wide = false }) {
+  document.getElementById("modalTitle").textContent = title;
+  document.getElementById("modalIcon").className = `fa-solid ${icon}`;
+  document.getElementById("modalBody").innerHTML = bodyHTML;
+  document.getElementById("modal").classList.toggle("wide", wide);
+  const foot = document.getElementById("modalFoot");
+  foot.innerHTML = "";
+  buttons.forEach((b) => {
+    const el = document.createElement("button");
+    el.className = `btn ${b.variant || ""}`;
+    el.innerHTML = b.label;
+    el.onclick = () => b.onClick(el);
+    foot.appendChild(el);
+  });
+  document.getElementById("modalOverlay").classList.add("open");
+};
+SDE.closeModal = function () {
+  document.getElementById("modalOverlay").classList.remove("open");
+};
+
+/* ---------- Column multiselect builder ---------------------------------- */
+SDE.columnSelectHTML = function (id, { multiple = true, includeAll = false } = {}) {
+  const opts = SDE.columns.map((c) => `<option value="${SDE.esc(c)}">${SDE.esc(c)}</option>`).join("");
+  const all = includeAll ? `<option value="">— all columns —</option>` : "";
+  return `<select id="${id}" ${multiple ? "multiple" : ""}>${all}${opts}</select>`;
+};
+SDE.getSelected = function (id) {
+  const el = document.getElementById(id);
+  if (!el) return [];
+  return Array.from(el.selectedOptions).map((o) => o.value).filter((v) => v !== "");
+};
+SDE.esc = function (s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+};
+
+/* ---------- Status / header / footer ------------------------------------ */
+SDE.applyStatus = function (st) {
+  SDE.status = st;
+  const chip = document.getElementById("fileChipName");
+  chip.textContent = st.file;
+  document.getElementById("fileChip").title = st.file;
+  document.getElementById("sbFile").textContent = st.loaded ? st.file : "—";
+  document.getElementById("sbSize").textContent = st.size || "—";
+  document.getElementById("sbRows").textContent = (st.rows || 0).toLocaleString();
+  document.getElementById("sbCols").textContent = st.cols || 0;
+  const undoBtn = document.getElementById("undoBtn");
+  const redoBtn = document.getElementById("redoBtn");
+  if (undoBtn) undoBtn.disabled = !st.can_undo;
+  if (redoBtn) redoBtn.disabled = !st.can_redo;
+  const dot = document.getElementById("statusDot");
+  dot.classList.toggle("is-ready", !!st.loaded);
+  document.getElementById("statusDotText").textContent = st.loaded ? "Ready" : "Idle";
+  document.getElementById("emptyState").style.display =
+    (st.loaded && st.source !== "pdf") ? "none" : "flex";
+};
+SDE.refreshStatus = async function () {
+  try { const d = await SDE.get("/api/status"); SDE.applyStatus(d.status); }
+  catch (e) { /* ignore */ }
+};
+SDE.setSelectedCount = function (n) {
+  document.getElementById("sbSelected").textContent = n;
+};
+SDE.setFilteredCount = function (n) {
+  document.getElementById("sbFiltered").textContent = (n || 0).toLocaleString();
+};
+SDE.setValidationStatus = function (text, cls) {
+  const el = document.getElementById("sbValidation");
+  el.innerHTML = `<i class="fa-solid fa-shield-halved"></i> ${text}`;
+  el.style.color = cls || "";
+};
+
+/* ---------- Theme ------------------------------------------------------- */
+SDE.toggleTheme = function () {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const next = cur === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("sde-theme", next);
+  document.querySelector("#themeToggle i").className =
+    next === "dark" ? "fa-solid fa-sun" : "fa-solid fa-moon";
+  if (SDE.grid && SDE.grid.applyTheme) SDE.grid.applyTheme(next);
+};
+
+/* =========================================================================
+   FILE OPENING
+   ========================================================================= */
+SDE.actions["open-file"] = () => document.getElementById("fileInput").click();
+
+SDE.handleUpload = async function (file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  SDE.busy(true);
+  try {
+    const d = await SDE.api("/api/files/open", { method: "POST", body: fd });
+    SDE.afterOpen(d);
+  } catch (e) { SDE.toast(e.message, "error"); }
+  finally { SDE.busy(false); }
+};
+
+SDE.afterOpen = function (d) {
+  if (d.needs_sheet) { SDE.pickSheet(d.path, d.sheets, d.name); return; }
+  if (d.pdf) { SDE.applyStatus(d.status); SDE.openPdfPanel(d.pdf_info); SDE.toast("PDF loaded", "success"); return; }
+  SDE.applyStatus(d.status);
+  SDE.grid.reload();
+  SDE.setValidationStatus("Not validated");
+  SDE.markClean();
+  SDE.toast("File loaded", "success");
+};
+
+SDE.pickSheet = function (path, sheets, name) {
+  const opts = sheets.map((s) => `<option value="${SDE.esc(s)}">${SDE.esc(s)}</option>`).join("");
+  SDE.modal({
+    title: "Select a sheet", icon: "fa-layer-group",
+    bodyHTML: `<div class="field"><label>Workbook: ${SDE.esc(name)}</label>
+      <select id="sheetSel">${opts}</select></div>`,
+    buttons: [
+      { label: "Cancel", onClick: SDE.closeModal },
+      { label: "Load sheet", variant: "primary", onClick: async () => {
+        const sheet = document.getElementById("sheetSel").value;
+        SDE.closeModal(); SDE.busy(true);
+        try {
+          const d = await SDE.post("/api/files/load-sheet", { path, sheet });
+          SDE.applyStatus(d.status); SDE.grid.reload();
+          SDE.setValidationStatus("Not validated");
+          SDE.markClean();
+          SDE.toast(`Loaded sheet "${sheet}"`, "success");
+        } catch (e) { SDE.toast(e.message, "error"); }
+        finally { SDE.busy(false); }
+      } },
+    ],
+  });
+};
+
+SDE.actions["open-folder"] = async function () {
+  const { value: folder } = await Swal.fire({
+    title: "Open folder", input: "text",
+    inputPlaceholder: "C:\\Users\\me\\Documents  or  /home/me/data",
+    showCancelButton: true, confirmButtonText: "List files",
+    confirmButtonColor: "#2563eb",
+  });
+  if (!folder) return;
+  try {
+    const d = await SDE.post("/api/files/folder", { folder });
+    if (!d.items.length) { SDE.toast("No supported files found", "warn"); return; }
+    SDE.fileListModal("Folder contents", d.items);
+  } catch (e) { SDE.toast(e.message, "error"); }
+};
+
+SDE.actions["recent"] = async function () {
+  const d = await SDE.get("/api/files/recent");
+  if (!d.recent.length) { SDE.toast("No recent files yet", "info"); return; }
+  const items = d.recent.map((r) => ({ path: r.path, name: r.name, ext: "",
+    size: r.sheet ? `sheet: ${r.sheet}` : "" }));
+  SDE.fileListModal("Recent files", items);
+};
+
+SDE.fileListModal = function (title, items) {
+  const rows = items.map((it) => `
+    <div class="list-item" data-path="${SDE.esc(it.path)}">
+      <i class="fa-solid ${SDE.fileIcon(it.ext || it.path)}"></i>
+      <span class="nm">${SDE.esc(it.name)}</span>
+      <span class="meta">${SDE.esc(it.size || "")}</span>
+    </div>`).join("");
+  SDE.modal({
+    title, icon: "fa-folder-open", bodyHTML: rows,
+    buttons: [{ label: "Close", onClick: SDE.closeModal }],
+  });
+  document.querySelectorAll("#modalBody .list-item").forEach((el) => {
+    el.onclick = async () => {
+      SDE.closeModal(); SDE.busy(true);
+      try { SDE.afterOpen(await SDE.post("/api/files/open-path", { path: el.dataset.path })); }
+      catch (e) { SDE.toast(e.message, "error"); }
+      finally { SDE.busy(false); }
+    };
+  });
+};
+
+SDE.fileIcon = function (s) {
+  s = (s || "").toLowerCase();
+  if (s.includes("xls")) return "fa-file-excel";
+  if (s.includes("csv") || s.includes("tsv")) return "fa-file-csv";
+  if (s.includes("pdf")) return "fa-file-pdf";
+  return "fa-file";
+};
+
+/* =========================================================================
+   TRANSFORM / BULK EDIT
+   ========================================================================= */
+SDE.runTransform = async function (op, params, applyLabel = "Apply") {
+  SDE.busy(true);
+  try {
+    const d = await SDE.post(`/api/transform/${op}`, params);
+    SDE.applyStatus(d.status); SDE.grid.reload();
+    SDE.toast(`${applyLabel}: ${d.description}`, "success");
+  } catch (e) { SDE.toast(e.message, "error"); }
+  finally { SDE.busy(false); }
+};
+
+// builds the standard scope + column picker used by most transforms
+SDE.transformControls = function (opts = {}) {
+  return `
+    <div class="field">
+      <label>Apply to</label>
+      <div class="seg" id="scopeSeg">
+        <button class="active" data-scope="all">All rows</button>
+        <button data-scope="selected">Selected rows</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Columns ${opts.colHint || "(none = all)"}</label>
+      ${SDE.columnSelectHTML("tfCols", { multiple: true })}
+      <div class="hint">Ctrl/Cmd-click to choose multiple. Leave empty for all.</div>
+    </div>`;
+};
+SDE.readScope = function () {
+  const active = document.querySelector("#scopeSeg .active");
+  return active ? active.dataset.scope : "all";
+};
+SDE.wireScopeSeg = function () {
+  document.querySelectorAll("#scopeSeg button").forEach((b) => {
+    b.onclick = () => {
+      document.querySelectorAll("#scopeSeg button").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+    };
+  });
+};
+SDE.scopeIds = function () {
+  return SDE.readScope() === "selected" ? SDE.grid.selectedIds() : null;
+};
+
+// Simple text-input transforms (replace, regex, append, prepend, null replace)
+SDE.openTextTransform = function (cfg) {
+  SDE.modal({
+    title: cfg.title, icon: cfg.icon || "fa-wand-magic-sparkles",
+    bodyHTML: cfg.fields + SDE.transformControls(cfg),
+    buttons: [
+      { label: "Cancel", onClick: SDE.closeModal },
+      cfg.preview ? { label: "Preview", onClick: () => cfg.onPreview() } : null,
+      { label: "Apply", variant: "primary", onClick: () => cfg.onApply() },
+    ].filter(Boolean),
+  });
+  SDE.wireScopeSeg();
+};
+
+SDE.actions["replace"] = function () {
+  SDE.openTextTransform({
+    title: "Find & Replace", icon: "fa-right-left", preview: true,
+    fields: `<div class="row-2">
+        <div class="field"><label>Find</label><input type="text" id="tfFind"></div>
+        <div class="field"><label>Replace with</label><input type="text" id="tfRepl"></div>
+      </div>`,
+    onPreview: () => SDE.previewTransform("replace", () => ({
+      find: val("tfFind"), replace: val("tfRepl"), columns: SDE.getSelected("tfCols"),
+      scope: SDE.readScope(), ids: SDE.scopeIds() })),
+    onApply: () => { SDE.closeModal(); SDE.runTransform("replace", {
+      find: val("tfFind"), replace: val("tfRepl"), columns: SDE.getSelected("tfCols"),
+      scope: SDE.readScope(), ids: SDE.scopeIds() }); },
+  });
+};
+
+SDE.actions["regex-replace"] = function () {
+  SDE.openTextTransform({
+    title: "Regex Replace", icon: "fa-asterisk", preview: true,
+    fields: `<div class="row-2">
+        <div class="field"><label>Pattern (regex)</label><input type="text" id="tfPat" placeholder="\\d+"></div>
+        <div class="field"><label>Replace with</label><input type="text" id="tfRepl" placeholder="#"></div>
+      </div>`,
+    onPreview: () => SDE.previewTransform("regex_replace", () => ({
+      pattern: val("tfPat"), replace: val("tfRepl"), columns: SDE.getSelected("tfCols"),
+      scope: SDE.readScope(), ids: SDE.scopeIds() })),
+    onApply: () => { SDE.closeModal(); SDE.runTransform("regex_replace", {
+      pattern: val("tfPat"), replace: val("tfRepl"), columns: SDE.getSelected("tfCols"),
+      scope: SDE.readScope(), ids: SDE.scopeIds() }); },
+  });
+};
+
+// One-click case / trim / clean transforms (with a small confirm modal for scope)
+["trim", "upper", "lower", "proper", "remove-special"].forEach((act) => {
+  const map = { trim: ["trim", "Trim Spaces", "fa-scissors"],
+    upper: ["upper", "Upper Case", "fa-arrow-up-a-z"],
+    lower: ["lower", "Lower Case", "fa-arrow-down-a-z"],
+    proper: ["proper", "Proper Case", "fa-font"],
+    "remove-special": ["remove_special", "Remove Special Characters", "fa-eraser"] };
+  SDE.actions[act] = function () {
+    const [op, title, icon] = map[act];
+    SDE.modal({
+      title, icon, bodyHTML: SDE.transformControls({}),
+      buttons: [
+        { label: "Cancel", onClick: SDE.closeModal },
+        { label: "Apply", variant: "primary", onClick: () => {
+          SDE.closeModal();
+          SDE.runTransform(op, { columns: SDE.getSelected("tfCols"),
+            scope: SDE.readScope(), ids: SDE.scopeIds() });
+        } },
+      ],
+    });
+    SDE.wireScopeSeg();
+  };
+});
+
+SDE.actions["merge"] = function () {
+  SDE.modal({
+    title: "Merge Columns", icon: "fa-object-group",
+    bodyHTML: `
+      <div class="field"><label>Columns to merge (in order)</label>
+        ${SDE.columnSelectHTML("mgCols", { multiple: true })}</div>
+      <div class="row-2">
+        <div class="field"><label>New column name</label><input type="text" id="mgTarget" value="merged"></div>
+        <div class="field"><label>Separator</label><input type="text" id="mgSep" value=" "></div>
+      </div>`,
+    buttons: [
+      { label: "Cancel", onClick: SDE.closeModal },
+      { label: "Merge", variant: "primary", onClick: () => {
+        SDE.closeModal();
+        SDE.runTransform("merge", { columns: SDE.getSelected("mgCols"),
+          target: val("mgTarget") || "merged", separator: val("mgSep") });
+      } },
+    ],
+  });
+};
+
+SDE.actions["split"] = function () {
+  SDE.modal({
+    title: "Split Column", icon: "fa-object-ungroup",
+    bodyHTML: `
+      <div class="field"><label>Column to split</label>
+        ${SDE.columnSelectHTML("spCol", { multiple: false })}</div>
+      <div class="field"><label>Separator</label>
+        <input type="text" id="spSep" value=","></div>`,
+    buttons: [
+      { label: "Cancel", onClick: SDE.closeModal },
+      { label: "Split", variant: "primary", onClick: () => {
+        const col = document.getElementById("spCol").value;
+        SDE.closeModal();
+        SDE.runTransform("split", { column: col, separator: val("spSep") || "," });
+      } },
+    ],
+  });
+};
+
+SDE.previewTransform = async function (op, paramsFn) {
+  try {
+    const d = await SDE.post(`/api/transform/${op}`, { ...paramsFn(), preview: true });
+    const p = d.preview;
+    const cols = p.columns;
+    const head = `<tr><th>#</th>${cols.map((c) => `<th>${SDE.esc(c)}</th>`).join("")}</tr>`;
+    const rows = p.before.map((b, i) => {
+      const a = p.after[i] || {};
+      const cells = cols.map((c) =>
+        `<td>${SDE.esc(b[c])} <span class="arrow">→</span> ${SDE.esc(a[c])}</td>`).join("");
+      return `<tr><td>${b.__id}</td>${cells}</tr>`;
+    }).join("");
+    const html = `<div style="overflow:auto"><table class="preview-tbl"><thead>${head}</thead>
+      <tbody>${rows}</tbody></table></div>
+      <div class="hint" style="margin-top:10px">Showing up to 8 affected rows.</div>`;
+    document.getElementById("modalBody").insertAdjacentHTML("beforeend",
+      `<div id="previewBox" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">${html}</div>`);
+    const old = document.getElementById("previewBoxPrev");
+    if (old) old.remove();
+    document.getElementById("previewBox").id = "previewBoxPrev";
+  } catch (e) { SDE.toast(e.message, "error"); }
+};
+
+/* Commit any in-progress grid edit and wait for pending cell-saves to finish.
+   Ensures every export/report/summary reflects the latest edits. */
+SDE.commitEdits = async function () {
+  if (!SDE.grid) return;
+  if (SDE.grid.stopEditing) SDE.grid.stopEditing();
+  if (SDE.grid.flush) await SDE.grid.flush();
+};
+
+/* Explicit Save: commit the active edit, flush pending saves, mark clean.
+   Edits already persist to the server as you make them; Save guarantees the
+   in-progress edit is committed so the next download is fully up to date. */
+SDE.actions["save"] = async function () {
+  if (!SDE.status || !SDE.status.loaded) { SDE.toast("Nothing to save yet", "info"); return; }
+  SDE.busy(true);
+  try {
+    await SDE.commitEdits();
+    await SDE.refreshStatus();
+    SDE.markClean();
+    SDE.toast("All changes saved — downloads will be up to date", "success");
+  } catch (e) { SDE.toast(e.message, "error"); }
+  finally { SDE.busy(false); }
+};
+
+/* =========================================================================
+   EXPORT + REPORTS
+   ========================================================================= */
+["csv", "pdf", "json"].forEach((fmt) => {
+  SDE.actions[`export-${fmt}`] = async function () {
+    if (!SDE.requireData()) return;
+    SDE.busy(true);
+    try {
+      await SDE.commitEdits();
+      const d = await SDE.post(`/api/export/${fmt}`, {});
+      SDE.toast(`Exported ${d.file}`, "success");
+      SDE.downloadLinkToast(d.url, d.file, { rows: d.rows, cols: d.cols });
+    } catch (e) { SDE.toast(e.message, "error"); }
+    finally { SDE.busy(false); }
+  };
+});
+
+// Excel offers two variants: highlighted missing values, or plain.
+async function doExcelExport(highlight) {
+  SDE.busy(true);
+  try {
+    await SDE.commitEdits();
+    const d = await SDE.post("/api/export/excel", { highlight });
+    SDE.toast(`Exported ${d.file}`, "success");
+    SDE.downloadLinkToast(d.url, d.file, { rows: d.rows, cols: d.cols });
+  } catch (e) { SDE.toast(e.message, "error"); }
+  finally { SDE.busy(false); }
+}
+
+// ---- merge mode: merge multiple axe workbooks, load result into the grid ----
+SDE.actions["merge-files"] = function () {
+  document.getElementById("mergeInput").click();
+};
+
+SDE.handleMerge = async function (fileList) {
+  const fd = new FormData();
+  Array.prototype.forEach.call(fileList, (f) => fd.append("files", f));
+  SDE.busy(true);
+  try {
+    const d = await SDE.api("/api/files/merge-open", { method: "POST", body: fd });
+    SDE.afterOpen(d);
+    const s = d.stats || {};
+    SDE.toast(`Merged ${s.files_processed}/${s.files_total} files · `
+      + `${s.duplicates_removed} duplicate(s) removed · ${s.final_rows} rows`, "success");
+    if (d.merge_url) SDE.downloadLinkToast(d.merge_url, d.merged_file,
+      { rows: s.final_rows, cols: s.columns });
+  } catch (e) { SDE.toast(e.message, "error"); }
+  finally { SDE.busy(false); }
+};
+
+// ---- delivery mode: summarise loaded data by WCAG Ver / Priority ----
+SDE.actions["delivery-errors"] = async function () {
+  if (!SDE.requireData()) return;
+  SDE.busy(true);
+  try {
+    await SDE.commitEdits();
+    const d = await SDE.get("/api/feature/delivery-errors");
+    const s = d.summary || {};
+    const tbl = (title, obj, col) => {
+      const keys = Object.keys(obj || {});
+      if (!keys.length) return `<p class="hint">No "${SDE.esc(col)}" column found, or no values.</p>`;
+      return `<h4 style="margin:14px 0 6px">${title}</h4><table class="mini-table">
+        <thead><tr><th>${SDE.esc(col)}</th><th>Errors</th></tr></thead><tbody>` +
+        keys.map((k) => `<tr><td>${SDE.esc(k)}</td><td>${obj[k]}</td></tr>`).join("") +
+        `</tbody></table>`;
+    };
+    SDE.modal({
+      title: "Error summary", icon: "fa-triangle-exclamation",
+      bodyHTML: `<div class="hint">Total rows: <b>${s.total || 0}</b></div>`
+        + tbl("By WCAG Ver", s.by_wcag, s.wcag_col || "WCAG Ver")
+        + tbl("By Priority", s.by_prio, s.prio_col || "Priority"),
+      buttons: [{ label: "Close", variant: "primary", onClick: SDE.closeModal }],
+    });
+  } catch (e) { SDE.toast(e.message, "error"); }
+  finally { SDE.busy(false); }
+};
+
+// ---- delivery mode: export using the delivery template ----
+SDE.actions["export-template"] = async function () {
+  if (!SDE.requireData()) return;
+  SDE.busy(true);
+  try {
+    await SDE.commitEdits();
+    const d = await SDE.post("/api/feature/export-template", {});
+    SDE.toast(d.template_used ? "Exported using the delivery template"
+      : "No template installed — exported a standalone workbook",
+      d.template_used ? "success" : "info");
+    SDE.downloadLinkToast(d.url, d.file, {});
+  } catch (e) { SDE.toast(e.message, "error"); }
+  finally { SDE.busy(false); }
+};
+
+SDE.actions["export-excel"] = function () {
+  if (!SDE.requireData()) return;
+  SDE.modal({
+    title: "Export to Excel", icon: "fa-file-excel",
+    bodyHTML: `<div class="hint" style="margin-bottom:14px">
+        Choose how missing values should appear in the workbook. All rows and
+        columns are included; the file keeps its normal layout.</div>
+      <div class="export-choice">
+        <button class="btn primary" id="xlHi" style="width:100%;margin-bottom:10px">
+          <i class="fa-solid fa-fill-drip"></i>&nbsp; Highlight missing values (blue)</button>
+        <button class="btn" id="xlPlain" style="width:100%">
+          <i class="fa-solid fa-table"></i>&nbsp; Plain — no highlighting</button>
+      </div>`,
+    buttons: [{ label: "Cancel", onClick: SDE.closeModal }],
+  });
+  document.getElementById("xlHi").onclick = () => { SDE.closeModal(); doExcelExport(true); };
+  document.getElementById("xlPlain").onclick = () => { SDE.closeModal(); doExcelExport(false); };
+};
+
+SDE.downloadLinkToast = function (url, name, meta) {
+  // start the download automatically
+  try {
+    const a = document.createElement("a");
+    a.href = url; a.download = name || "";
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { /* manual link below */ }
+
+  const count = (meta && meta.rows != null && meta.cols != null)
+    ? `<div class="export-count">
+         <div class="ec-nums"><b>${Number(meta.rows).toLocaleString()}</b> rows
+           &nbsp;&middot;&nbsp; <b>${Number(meta.cols).toLocaleString()}</b> columns</div>
+         <div class="ec-sub">included in the exported file</div>
+       </div>`
+    : "";
+
+  // Use the app's OWN modal (local, always present) instead of SweetAlert2,
+  // so the count is shown reliably even if a CDN library failed to load.
+  SDE.modal({
+    title: "Export complete", icon: "fa-circle-check",
+    bodyHTML: `${count}
+      <div class="hint" style="margin:4px 0 14px">
+        Your download should have started automatically. If it didn't, use the
+        button below.</div>
+      <a href="${url}" download class="btn primary" style="width:100%;text-align:center">
+        <i class="fa-solid fa-download"></i>&nbsp; Download ${SDE.esc(name)}</a>`,
+    buttons: [{ label: "Done", variant: "primary", onClick: SDE.closeModal }],
+  });
+};
+
+SDE.actions["reports"] = function () {
+  if (!SDE.requireData()) return;
+  SDE.modal({
+    title: "Generate Report", icon: "fa-file-lines",
+    bodyHTML: `
+      <div class="field"><label>Report type</label>
+        <select id="rpKind">
+          <option value="validation">Validation report</option>
+          <option value="duplicate">Duplicate report</option>
+          <option value="error">Error report</option>
+          <option value="summary">Data summary report</option>
+        </select></div>
+      <div class="field"><label>Format</label>
+        <select id="rpFmt">
+          <option value="pdf">PDF</option>
+          <option value="excel">Excel</option>
+          <option value="html">HTML</option>
+        </select></div>`,
+    buttons: [
+      { label: "Cancel", onClick: SDE.closeModal },
+      { label: "Generate", variant: "primary", onClick: async () => {
+        const kind = val("rpKind"); const fmt = val("rpFmt");
+        SDE.closeModal(); SDE.busy(true);
+        try {
+          await SDE.commitEdits();
+          const d = await SDE.post(`/api/report/${kind}/${fmt}`, {});
+          SDE.downloadLinkToast(d.url, d.file);
+        } catch (e) { SDE.toast(e.message, "error"); }
+        finally { SDE.busy(false); }
+      } },
+    ],
+  });
+};
+
+/* ---------- small utils ------------------------------------------------- */
+function val(id) { const e = document.getElementById(id); return e ? e.value : ""; }
+SDE.requireData = function () {
+  if (!SDE.status || !SDE.status.loaded || SDE.status.source === "pdf") {
+    SDE.toast("Load a data file first", "warn"); return false;
+  }
+  return true;
+};
+
+/* =========================================================================
+   BOOTSTRAP
+   ========================================================================= */
+/* =========================================================================
+   RIBBON MENU (spreadsheet-style top menu)
+   ========================================================================= */
+SDE.initRibbon = function () {
+  const ribbon = document.getElementById("ribbon");
+  if (!ribbon) return;
+  const menus = Array.from(ribbon.querySelectorAll(".ribbon-menu"));
+  if (!menus.length) return;
+
+  const closeAll = (except) => {
+    menus.forEach((m) => {
+      if (m === except) return;
+      m.classList.remove("open");
+      const top = m.querySelector(".ribbon-top");
+      if (top) top.setAttribute("aria-expanded", "false");
+    });
+  };
+  const open = (m) => {
+    closeAll(m);
+    m.classList.add("open");
+    const top = m.querySelector(".ribbon-top");
+    if (top) top.setAttribute("aria-expanded", "true");
+  };
+  const isOpen = (m) => m.classList.contains("open");
+  const itemsOf = (m) => Array.from(m.querySelectorAll(".ribbon-item:not(:disabled)"));
+
+  menus.forEach((menu) => {
+    const top = menu.querySelector(".ribbon-top");
+    top.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (isOpen(menu)) closeAll();
+      else open(menu);
+    });
+    // Open with keyboard and move into the list
+    top.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        open(menu);
+        const items = itemsOf(menu);
+        if (items.length) items[0].focus();
+      } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        const i = menus.indexOf(menu);
+        const next = e.key === "ArrowRight"
+          ? menus[(i + 1) % menus.length]
+          : menus[(i - 1 + menus.length) % menus.length];
+        next.querySelector(".ribbon-top").focus();
+        if (isOpen(menu)) open(next);
+      }
+    });
+    // Clicking an item runs its action (global handler) then closes the menu
+    menu.querySelectorAll(".ribbon-item").forEach((item) => {
+      item.addEventListener("click", () => setTimeout(closeAll, 0));
+    });
+    // Keyboard navigation inside the dropdown
+    menu.addEventListener("keydown", (e) => {
+      const items = itemsOf(menu);
+      const idx = items.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") {
+        e.preventDefault(); items[(idx + 1) % items.length]?.focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault(); items[(idx - 1 + items.length) % items.length]?.focus();
+      } else if (e.key === "Home") {
+        e.preventDefault(); items[0]?.focus();
+      } else if (e.key === "End") {
+        e.preventDefault(); items[items.length - 1]?.focus();
+      } else if (e.key === "Escape") {
+        e.preventDefault(); closeAll(); top.focus();
+      }
+    });
+  });
+
+  // Close on outside click
+  document.addEventListener("click", (e) => {
+    if (!ribbon.contains(e.target)) closeAll();
+  });
+};
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  // theme icon
+  const t = document.documentElement.getAttribute("data-theme");
+  document.querySelector("#themeToggle i").className =
+    t === "dark" ? "fa-solid fa-sun" : "fa-solid fa-moon";
+  document.getElementById("themeToggle").onclick = SDE.toggleTheme;
+
+  // file input
+  document.getElementById("fileInput").addEventListener("change", (e) => {
+    if (e.target.files[0]) SDE.handleUpload(e.target.files[0]);
+    e.target.value = "";
+  });
+
+  // merge multi-file input (merge mode)
+  const mi = document.getElementById("mergeInput");
+  if (mi) mi.addEventListener("change", (e) => {
+    if (e.target.files && e.target.files.length) SDE.handleMerge(e.target.files);
+    e.target.value = "";
+  });
+
+  // global search (header) -> grid search
+  const gs = document.getElementById("globalSearch");
+  gs.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") SDE.grid.search(gs.value.trim());
+  });
+
+  // toolbar + global action dispatch
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    const act = btn.dataset.action;
+    const handler = SDE.actions[act];
+    if (handler) { e.preventDefault(); handler(btn); }
+  });
+
+  // modal close
+  document.getElementById("modalClose").onclick = SDE.closeModal;
+  document.getElementById("modalOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "modalOverlay") SDE.closeModal();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") SDE.closeModal();
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); if (SDE.actions["save"]) SDE.actions["save"](); }
+    if ((e.ctrlKey || e.metaKey) && e.key === "z") { e.preventDefault(); SDE.actions["undo"](); }
+    if ((e.ctrlKey || e.metaKey) && e.key === "y") { e.preventDefault(); SDE.actions["redo"](); }
+  });
+
+  SDE.initRibbon();
+  SDE.refreshStatus();
+});
