@@ -1,0 +1,43 @@
+      # Version control
+.git
+.gitignore
+
+# Python caches / builds
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local runtime data — should be volumes, not baked into the image
+uploads/*
+exports/*
+reports/*
+data/recent_files.json
+database/*.db
+
+# Keep the placeholder files so dirs still exist
+!**/.gitkeep
+
+# IDE / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets — must never be baked into the image
+.env
+*.env
+!.env.example
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
