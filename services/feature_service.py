@@ -506,7 +506,7 @@ def axe_to_audit(path: str | Path, sheet: str | None = None,
         cells["M"] = "0"
         cells["P"] = "Pending"
         cells["Q"] = "PSGIN"
-        cells["R"] = "Defect"
+        cells["R"] = "Story"
         cells["V"] = "kevin.murphy@ascendlearning.com"
 
         # standard tag (e.g. WCAG2A / WCAG21AA) -> F (overrides level)
