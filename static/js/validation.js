@@ -226,8 +226,26 @@
         SDE.grid.refresh();
         setTimeout(() => SDE.grid.setDuplicateRows(res.duplicate_ids || [], res.groups || []), 150);
       }
+      // Rows have been grouped/coloured — enable Save so the user can keep this
+      // arrangement, and let them know the export can carry the colours.
+      if (res.duplicate_rows && SDE.markDirty) {
+        SDE.markDirty();
+        SDE.toast("Duplicates grouped & coloured \u2014 use Save to keep this order, "
+          + "or Export with the duplicate-highlight option.", "info");
+      }
       const drop = document.getElementById("dropDupBtn");
       if (drop) drop.onclick = () => dropDuplicates(res.columns);
+
+      // Remember on what basis duplicates were found, and reveal the info
+      // button next to the Check menu so the user can review it any time.
+      SDE._dupBasis = {
+        columns: res.columns || [],
+        allColumns: !columns,            // null columns => matched on all columns
+        groups: res.group_count,
+        rows: res.duplicate_rows,
+      };
+      const infoBtn = document.getElementById("dupInfoBtn");
+      if (infoBtn) infoBtn.style.display = "";
     } catch (e) { SDE.toast(e.message, "error"); }
     finally { SDE.busy(false); }
   }

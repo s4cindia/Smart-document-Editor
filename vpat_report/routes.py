@@ -10,7 +10,7 @@ import logging
 from flask import Blueprint, render_template, request
 
 from app_helpers import fail, feature_response, ok, save_uploads
-from services.store import store
+from services.store import store, drop_all_blank_rows
 from utils.helpers import ID_COL
 from vpat_report import services
 
@@ -54,7 +54,10 @@ def delivery_errors():
 def export_template():
     if not store.loaded:
         return fail("Open a workbook first.")
-    df = store.df.select([c for c in store.df.columns if c != ID_COL])
+    # Downloads contain real data only: drop entirely-blank rows (every cell
+    # null/empty) before stripping the internal id and writing the template.
+    clean = drop_all_blank_rows(store.df, ID_COL)
+    df = clean.select([c for c in clean.columns if c != ID_COL])
     try:
         out, used = services.export_template(df, stem="delivery")
     except Exception as exc:  # noqa: BLE001

@@ -1,5 +1,5 @@
 /* =========================================================================
-   Accessibility Tools — core application logic
+   Smart Document Editor & Validator — core application logic
    Shared namespace: window.SDE
    ========================================================================= */
 window.SDE = window.SDE || {};
@@ -153,6 +153,7 @@ SDE.actions["open-file"] = () => document.getElementById("fileInput").click();
 SDE.handleUpload = async function (file) {
   const fd = new FormData();
   fd.append("file", file);
+  fd.append("mode", window.SDE_PAGE_MODE || "full");
   SDE.busy(true);
   try {
     const d = await SDE.api("/api/files/open", { method: "POST", body: fd });
@@ -204,7 +205,7 @@ SDE.pickSheet = function (path, sheets, name) {
         const sheet = document.getElementById("sheetSel").value;
         SDE.closeModal(); SDE.busy(true);
         try {
-          const d = await SDE.post("/api/files/load-sheet", { path, sheet });
+          const d = await SDE.post("/api/files/load-sheet", { path, sheet, mode: window.SDE_PAGE_MODE || "full" });
           SDE.applyStatus(d.status); SDE.grid.reload();
           SDE.setValidationStatus("Not validated");
           SDE.markClean();
@@ -234,9 +235,99 @@ SDE.actions["open-folder"] = async function () {
 SDE.actions["recent"] = async function () {
   const d = await SDE.get("/api/files/recent");
   if (!d.recent.length) { SDE.toast("No recent files yet", "info"); return; }
-  const items = d.recent.map((r) => ({ path: r.path, name: r.name, ext: "",
-    size: r.sheet ? `sheet: ${r.sheet}` : "" }));
+  const fmtTs = (ts) => {
+    if (!ts) return "";
+    try { return new Date(ts * 1000).toLocaleString(); } catch (e) { return ""; }
+  };
+  const items = d.recent.map((r) => {
+    const when = fmtTs(r.ts);
+    const parts = [];
+    if (r.sheet) parts.push(`sheet: ${r.sheet}`);
+    if (when) parts.push(`Opened ${when}`);
+    return { path: r.path, name: r.name, ext: "", size: parts.join("  \u00b7  ") };
+  });
   SDE.fileListModal("Recent files", items);
+};
+
+/* ----- Clear current file and open the next one ------------------------- */
+SDE.actions["close-file"] = function () {
+  const proceed = async () => {
+    SDE.busy(true);
+    try {
+      const d = await SDE.post("/api/files/close", {});
+      SDE.applyStatus(d.status);            // returns to the open screen
+      SDE.columns = [];
+      SDE._dupBasis = null;
+      const ib = document.getElementById("dupInfoBtn");
+      if (ib) ib.style.display = "none";
+      if (SDE.markClean) SDE.markClean();
+      if (SDE.grid && SDE.grid.reload) { try { await SDE.grid.reload(); } catch (e) {} }
+      SDE.toast("File cleared \u2014 choose the next file to open.", "success");
+      const fi = document.getElementById("fileInput");
+      if (fi) fi.click();                   // immediately offer to open the next file
+    } catch (e) {
+      SDE.toast(e.message, "error");
+    } finally {
+      SDE.busy(false);
+    }
+  };
+  if (SDE._dirty) {
+    SDE.modal({
+      title: "Clear current file?", icon: "fa-circle-xmark",
+      bodyHTML: `<div class="hint">You have unsaved changes. Clearing this file will discard them and let you open the next file. Continue?</div>`,
+      buttons: [
+        { label: "Cancel", onClick: SDE.closeModal },
+        { label: "Discard & open next", variant: "primary",
+          onClick: () => { SDE.closeModal(); proceed(); } },
+      ],
+    });
+  } else {
+    proceed();
+  }
+};
+
+/* ----- Downloads: re-download previously exported files ----------------- */
+SDE.actions["downloads"] = async function () {
+  let d;
+  try { d = await SDE.get("/api/files/downloads"); }
+  catch (e) { SDE.toast(e.message, "error"); return; }
+  const list = (d && d.downloads) || [];
+  if (!list.length) { SDE.toast("No downloads yet — export a file first.", "info"); return; }
+  const fmt = (ts) => { try { return new Date(ts * 1000).toLocaleString(); } catch (e) { return ""; } };
+  const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
+  const rows = list.map((it) => `
+    <div class="list-item" style="cursor:default">
+      <i class="fa-solid ${SDE.fileIcon(it.name)}"></i>
+      <span class="nm">${SDE.esc(it.name)}</span>
+      <span class="meta">${SDE.esc(fmt(it.ts))}  \u00b7  ${kb(it.size)}</span>
+      <a class="btn-mini" href="${SDE.esc(it.url)}" download
+         style="margin-left:auto;text-decoration:none"><i class="fa-solid fa-download"></i> Download</a>
+    </div>`).join("");
+  SDE.modal({
+    title: "Downloads", icon: "fa-download",
+    bodyHTML: `<div class="hint" style="margin-bottom:10px">Files you have exported, newest first. Click <b>Download</b> to get one again.</div>${rows}`,
+    buttons: [{ label: "Close", onClick: SDE.closeModal }],
+  });
+};
+
+/* ----- Duplicate basis: explain what defined the last duplicate check --- */
+SDE.actions["duplicate-info"] = function () {
+  const b = SDE._dupBasis;
+  if (!b) {
+    SDE.toast("Run \u201cCheck duplicate rows\u201d or \u201cFind duplicates\u201d first.", "info");
+    return;
+  }
+  const cols = (b.columns && b.columns.length)
+    ? b.columns.map((c) => `<span class="chip">${SDE.esc(c)}</span>`).join(" ")
+    : "<i>all columns</i>";
+  const scope = b.allColumns ? "every column in the data" : "the columns currently shown in the grid";
+  SDE.modal({
+    title: "What defines a duplicate", icon: "fa-circle-info",
+    bodyHTML: `<div class="hint" style="margin-bottom:10px">Two rows were treated as duplicates when they matched on ${scope}:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${cols}</div>
+      ${b.groups != null ? `<div class="hint" style="margin-top:12px">${b.rows} row(s) in ${b.groups} group(s) were found and grouped together.</div>` : ""}`,
+    buttons: [{ label: "Close", onClick: SDE.closeModal }],
+  });
 };
 
 SDE.fileListModal = function (title, items) {
@@ -253,7 +344,7 @@ SDE.fileListModal = function (title, items) {
   document.querySelectorAll("#modalBody .list-item").forEach((el) => {
     el.onclick = async () => {
       SDE.closeModal(); SDE.busy(true);
-      try { SDE.afterOpen(await SDE.post("/api/files/open-path", { path: el.dataset.path })); }
+      try { SDE.afterOpen(await SDE.post("/api/files/open-path", { path: el.dataset.path, mode: window.SDE_PAGE_MODE || "full" })); }
       catch (e) { SDE.fileOpenError(el.dataset.name || el.dataset.path, e.message); }
       finally { SDE.busy(false); }
     };
@@ -495,6 +586,7 @@ async function doExcelExport(opts) {
     const d = await SDE.post("/api/export/excel", {
       highlight_summary: !!opts.summary,
       highlight_blanks: !!opts.blanks,
+      highlight_dups: !!opts.dups,
     });
     SDE.toast(`Exported ${d.file}`, "success");
     SDE.downloadLinkToast(d.url, d.file, { rows: d.rows, cols: d.cols });
@@ -622,18 +714,23 @@ SDE.actions["export-excel"] = function () {
   if (!SDE.requireData()) return;
   SDE.modal({
     title: "Export to Excel", icon: "fa-file-excel",
-    bodyHTML: `<div class="hint" style="margin-bottom:12px">Choose how cells should be highlighted in the downloaded workbook (leave both off for a plain file):</div>
+    bodyHTML: `<div class="hint" style="margin-bottom:12px">Choose how cells should be highlighted in the downloaded workbook (leave all off for a plain file):</div>
       <label class="chk-row" style="font-size:13.5px;margin-bottom:6px"><input type="checkbox" id="xlHlSummary">
-        <span>Highlight <b>Summary</b> cells over 215 characters or with line breaks in <span style="background:#FFF59D;padding:0 6px;border-radius:3px">yellow</span></span></label>
-      <label class="chk-row" style="font-size:13.5px"><input type="checkbox" id="xlHlBlanks">
-        <span>Highlight <b>blank / empty</b> cells in <span style="background:#cdddff;padding:0 6px;border-radius:3px">blue</span></span></label>`,
+        <span>Highlight <b>Summary</b> cells over 215 characters or with line breaks in <span style="background:#DCFCE7;padding:0 6px;border-radius:3px">light green</span></span></label>
+      <label class="chk-row" style="font-size:13.5px;margin-bottom:6px"><input type="checkbox" id="xlHlBlanks">
+        <span>Highlight <b>blank / empty</b> cells in <span style="background:#FEE2E2;padding:0 6px;border-radius:3px">light red</span></span></label>
+      <label class="chk-row" style="font-size:13.5px"><input type="checkbox" id="xlHlDups">
+        <span>Download with the <b>duplicate-group</b> highlighting (the
+          <span style="background:#FDEBD0;padding:0 5px;border-radius:3px">colour</span><span style="background:#DCEAFF;padding:0 5px;border-radius:3px">groups</span>
+          from <b>Find duplicates</b>)</span></label>`,
     buttons: [
       { label: "Cancel", onClick: SDE.closeModal },
       { label: "Export", variant: "primary", onClick: () => {
           const summary = document.getElementById("xlHlSummary").checked;
           const blanks = document.getElementById("xlHlBlanks").checked;
+          const dups = document.getElementById("xlHlDups").checked;
           SDE.closeModal();
-          doExcelExport({ summary, blanks });
+          doExcelExport({ summary, blanks, dups });
         } },
     ],
   });
@@ -803,7 +900,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // file input
   document.getElementById("fileInput").addEventListener("change", (e) => {
-    if (e.target.files[0]) SDE.handleUpload(e.target.files[0]);
+    const files = e.target.files;
+    if (files && files.length > 1 && (window.SDE_PAGE_MODE === "merge")) {
+      SDE.handleMerge(files);            // placeholder 1 only: merge into one grid
+    } else if (files && files[0]) {
+      SDE.handleUpload(files[0]);        // single file (delivery / editor)
+    }
     e.target.value = "";
   });
 

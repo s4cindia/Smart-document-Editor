@@ -21,7 +21,7 @@ from app_helpers import (fail, load_pdf, load_tabular, ok, pdf_info_payload,
                          status_payload)
 from config import config
 from services import excel_service, export_service
-from services.store import FileMeta, store
+from services.store import FileMeta, store, drop_all_blank_rows
 from smart_editor import services as editor_services
 from smart_editor import validators
 from utils import file_utils
@@ -41,8 +41,15 @@ pdf_bp = Blueprint("pdf", __name__, url_prefix="/api/pdf")
 # --------------------------------------------------------------------------
 # Files: open / sheets / load / recent / folder
 # --------------------------------------------------------------------------
+def _max_cols_for(mode) -> int:
+    # delivery editor (placeholder 3) keeps A-W (23); everything else A-R (18)
+    return 23 if str(mode or "").lower() == "delivery" else 18
+
+
 @files_bp.route("/open", methods=["POST"])
 def open_file():
+    mode = request.form.get("mode")
+    max_cols = _max_cols_for(mode)
     if "file" not in request.files:
         return fail("No file part in request.")
     f = request.files["file"]
@@ -61,7 +68,7 @@ def open_file():
             if len(sheets) > 1:
                 return ok(needs_sheet=True, path=str(dest), sheets=sheets,
                           name=dest.name)
-            load_tabular(dest, sheets[0] if sheets else None)
+            load_tabular(dest, sheets[0] if sheets else None, max_cols)
             return ok(loaded=True, status=status_payload())
 
         if ext == ".pdf":
@@ -69,7 +76,7 @@ def open_file():
             return ok(loaded=True, pdf=True, status=status_payload(),
                       pdf_info=pdf_info_payload())
 
-        load_tabular(dest)
+        load_tabular(dest, max_cols=max_cols)
         return ok(loaded=True, status=status_payload())
     except Exception as exc:  # noqa: BLE001
         log.exception("open failed: %s", dest.name)
@@ -81,6 +88,7 @@ def open_file():
 @files_bp.route("/open-path", methods=["POST"])
 def open_path():
     body = request.get_json(force=True, silent=True) or {}
+    max_cols = _max_cols_for(body.get("mode"))
     path = Path(body.get("path", "")).expanduser()
     if not path.exists():
         return fail("File not found.")
@@ -94,9 +102,9 @@ def open_path():
         if len(sheets) > 1:
             return ok(needs_sheet=True, path=str(path), sheets=sheets,
                       name=path.name)
-        load_tabular(path, sheets[0] if sheets else None)
+        load_tabular(path, sheets[0] if sheets else None, max_cols)
         return ok(loaded=True, status=status_payload())
-    load_tabular(path)
+    load_tabular(path, max_cols=max_cols)
     return ok(loaded=True, status=status_payload())
 
 
@@ -113,15 +121,49 @@ def load_sheet():
     body = request.get_json(force=True, silent=True) or {}
     path = body.get("path")
     sheet = body.get("sheet")
+    max_cols = _max_cols_for(body.get("mode"))
     if not path:
         return fail("Missing path.")
-    load_tabular(Path(path), sheet)
+    load_tabular(Path(path), sheet, max_cols)
     return ok(loaded=True, status=status_payload())
 
 
 @files_bp.route("/recent")
 def recent():
     return ok(recent=file_utils.load_recent())
+
+
+@files_bp.route("/close", methods=["POST"])
+def close_file():
+    """Clear the currently loaded file so the next one can be opened."""
+    store.reset()
+    return ok(status=status_payload())
+
+
+@files_bp.route("/downloads")
+def downloads():
+    """List files previously exported/downloaded (newest first) so they can
+    be re-downloaded later for easy, future access."""
+    from config import config
+    items = []
+    for area in ("exports", "reports"):
+        d = getattr(config, f"{area[:-1]}_dir", None) or (config.base_dir / area)
+        try:
+            entries = list(d.iterdir())
+        except Exception:
+            entries = []
+        for p in entries:
+            if not p.is_file() or p.name.startswith("."):
+                continue
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            items.append({"name": p.name, "ts": st.st_mtime,
+                          "size": st.st_size, "area": area,
+                          "url": f"/download/{area}/{p.name}"})
+    items.sort(key=lambda x: x["ts"], reverse=True)
+    return ok(downloads=items[:50])
 
 
 @files_bp.route("/folder", methods=["POST"])
@@ -244,6 +286,8 @@ def duplicates():
     dup_ids = result.get("duplicate_ids") or []
     if dup_ids:
         store.reorder_by_ids(dup_ids)
+    # Remember the group of each row so an export can colour the groups.
+    store.set_duplicate_groups(result.get("groups"))
     return ok(result=result, regrouped=bool(dup_ids))
 
 
@@ -255,6 +299,7 @@ def drop_duplicates():
     new_df = validators.drop_duplicates(store.df, body.get("columns"))
     removed = store.df.height - new_df.height
     store.apply(new_df, "Drop duplicates")
+    store.clear_duplicate_groups()
     return ok(removed=removed, status=status_payload())
 
 
@@ -323,6 +368,9 @@ def export(fmt: str):
     if not store.loaded:
         return fail("No dataset loaded.")
     stem = Path(store.meta.name).stem or "export"
+    # Downloads contain real data only: drop rows that are entirely blank
+    # (every cell null/empty). Rows with some empty cells are kept.
+    export_df = drop_all_blank_rows(store.df, ID_COL)
     try:
         if fmt == "excel":
             body = request.get_json(silent=True) or {}
@@ -331,19 +379,28 @@ def export(fmt: str):
             #   • long / multi-line Summary cells in yellow (post-processed)
             hl_blanks = bool(body.get("highlight_blanks"))
             hl_summary = bool(body.get("highlight_summary") or body.get("highlight"))
-            path = editor_services.export(store.df, "excel", stem, highlight=hl_blanks)
+            hl_dups = bool(body.get("highlight_dups"))
+            path = editor_services.export(export_df, "excel", stem, highlight=hl_blanks)
             if hl_summary:
                 from services.excel_service import highlight_summary_cells
                 highlight_summary_cells(path)
+            if hl_dups:
+                from services.excel_service import highlight_duplicate_rows
+                # group index per row, aligned to the rows actually written
+                groups = [store.dup_groups.get(int(r))
+                          for r in export_df.get_column(ID_COL).to_list()]
+                highlight_duplicate_rows(path, groups)
+            from services.excel_service import trim_trailing_blank_rows
+            trim_trailing_blank_rows(path)
         elif fmt in ("csv", "json", "pdf"):
-            path = editor_services.export(store.df, fmt, stem)
+            path = editor_services.export(export_df, fmt, stem)
         else:
             return fail(f"Unsupported export format: {fmt}", 404)
     except Exception as exc:  # noqa: BLE001
         log.exception("export failed")
         return fail(f"Export failed: {exc}")
     return ok(file=path.name, url=f"/download/exports/{path.name}",
-              rows=store.df.height, cols=len(data_columns(store.df)))
+              rows=export_df.height, cols=len(data_columns(export_df)))
 
 
 @export_bp.route("/report/<kind>/<fmt>", methods=["POST"])

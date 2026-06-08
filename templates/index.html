@@ -42,6 +42,7 @@
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="open-file"><i class="fa-solid fa-folder-open"></i>Import file</button></li>
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="open-folder"><i class="fa-solid fa-folder-tree"></i>Open folder</button></li>
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="recent"><i class="fa-solid fa-clock-rotate-left"></i>Recent files</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="close-file"><i class="fa-solid fa-circle-xmark"></i>Clear file &amp; open next</button></li>
       <li role="none"><div class="ribbon-sep"></div></li>
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="statistics"><i class="fa-solid fa-calculator"></i>Data statistics</button></li>
     </ul>
@@ -80,6 +81,9 @@
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="quality"><i class="fa-solid fa-gauge-high"></i>Data quality</button></li>
     </ul>
   </div>
+  <button class="ribbon-top dup-info-btn" id="dupInfoBtn" data-action="duplicate-info"
+          title="What defines a duplicate?" style="display:none">
+    <i class="fa-solid fa-circle-info"></i> Duplicate basis</button>
 
   <!-- Rows -->
   <div class="ribbon-menu">
@@ -88,7 +92,6 @@
     <ul class="ribbon-dropdown" role="menu">
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="edit"><i class="fa-solid fa-pen"></i>Edit row</button></li>
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="add-row"><i class="fa-solid fa-plus"></i>Add row</button></li>
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="duplicate-selected"><i class="fa-solid fa-clone"></i>Duplicate row</button></li>
       <li role="none"><button class="ribbon-item danger" role="menuitem" data-action="delete-row"><i class="fa-solid fa-trash"></i>Delete row</button></li>
       <li role="none"><div class="ribbon-sep"></div></li>
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="tick-all"><i class="fa-solid fa-square-check"></i>Select all</button></li>
@@ -96,28 +99,6 @@
       <li role="none"><div class="ribbon-sep"></div></li>
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="undo" id="undoBtn"><i class="fa-solid fa-rotate-left"></i>Undo</button></li>
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="redo" id="redoBtn"><i class="fa-solid fa-rotate-right"></i>Redo</button></li>
-    </ul>
-  </div>
-
-  <!-- Transform -->
-  <div class="ribbon-menu">
-    <button class="ribbon-top" data-menu="transform" aria-haspopup="true" aria-expanded="false">
-      <i class="fa-solid fa-wand-magic-sparkles"></i> Transform <i class="fa-solid fa-chevron-down chev"></i></button>
-    <ul class="ribbon-dropdown" role="menu">
-      {% if mode == 'merge' %}
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="merge-files"><i class="fa-solid fa-object-group"></i>Merge files</button></li>
-      <li role="none"><div class="ribbon-sep"></div></li>
-      {% endif %}
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="replace"><i class="fa-solid fa-right-left"></i>Find &amp; replace</button></li>
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="regex-replace"><i class="fa-solid fa-asterisk"></i>Regex replace</button></li>
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="trim"><i class="fa-solid fa-scissors"></i>Trim spaces</button></li>
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="upper"><i class="fa-solid fa-arrow-up-a-z"></i>UPPERCASE</button></li>
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="lower"><i class="fa-solid fa-arrow-down-a-z"></i>lowercase</button></li>
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="proper"><i class="fa-solid fa-font"></i>Proper case</button></li>
-      <li role="none"><div class="ribbon-sep"></div></li>
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="merge"><i class="fa-solid fa-object-group"></i>Merge columns</button></li>
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="split"><i class="fa-solid fa-object-ungroup"></i>Split column</button></li>
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="remove-special"><i class="fa-solid fa-eraser"></i>Clean data</button></li>
     </ul>
   </div>
 
@@ -131,7 +112,9 @@
       {% if mode == 'delivery' %}
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="export-template"><i class="fa-solid fa-file-invoice"></i>Export using delivery template</button></li>
       {% endif %}
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="reports"><i class="fa-solid fa-file-lines"></i>Export report</button></li>
+      {% if mode != 'delivery' %}<li role="none"><button class="ribbon-item" role="menuitem" data-action="reports"><i class="fa-solid fa-file-lines"></i>Export report</button></li>{% endif %}
+      <li role="none"><div class="ribbon-sep"></div></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="downloads"><i class="fa-solid fa-download"></i>Downloads&hellip;</button></li>
     </ul>
   </div>
   <span class="ribbon-spacer"></span>
@@ -189,7 +172,8 @@
 </footer>
 
 <!-- hidden file input -->
-<input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.tsv,.pdf" style="display:none">
+<input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.tsv,.pdf" {% if mode == 'merge' %}multiple{% endif %} style="display:none">
+<script>window.SDE_PAGE_MODE = "{{ mode }}";</script>
 <input type="file" id="mergeInput" accept=".xlsx,.xls,.csv" multiple style="display:none">
 
 <!-- generic modal -->

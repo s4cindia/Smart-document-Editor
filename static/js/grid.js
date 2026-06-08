@@ -156,7 +156,8 @@
       onCellDoubleClicked: (ev) => {
         if (!ev || !ev.data) return;
         if (G.api) G.api.stopEditing(true);   // prefer the row box over inline edit
-        openRowEditor(ev.data, ev.colDef ? ev.colDef.field : null);
+        const rowNo = (ev.rowIndex != null) ? ev.rowIndex + 1 : null;
+        openRowEditor(ev.data, ev.colDef ? ev.colDef.field : null, rowNo);
       },
       onSelectionChanged: () => {
         if (G.api) SDE.setSelectedCount(G.api.getSelectedRows().length);
@@ -165,7 +166,7 @@
   }
 
   /* ----- ROW EDITOR: edit all fields of one row in a single box ---------- */
-  function openRowEditor(data, focusField) {
+  function openRowEditor(data, focusField, rowNo) {
     if (!data) return;
     const names = (SDE.columns || []).slice();
     if (!names.length) return;
@@ -174,9 +175,12 @@
         <label>${SDE.esc(c)}</label>
         <textarea id="rowf_${i}" rows="2">${SDE.esc(data[c] == null ? "" : String(data[c]))}</textarea>
       </div>`).join("");
+    const rowLabel = (rowNo != null) ? ("Edit row " + rowNo) : "Edit row";
     SDE.modal({
-      title: "Edit row #" + data.__id, icon: "fa-pen-to-square", wide: true,
-      bodyHTML: `<div class="hint" style="margin-bottom:12px">Edit any field and Save. All columns of this row are shown below.</div>
+      title: rowLabel, icon: "fa-pen-to-square", wide: true,
+      bodyHTML: `<div class="hint" style="margin-bottom:12px">${(rowNo != null)
+          ? "You are editing <b>row " + rowNo + "</b> of the grid. "
+          : ""}Edit any field and Save. All columns of this row are shown below.</div>
         <div class="row-editor">${body}</div>`,
       buttons: [
         { label: "Cancel", onClick: SDE.closeModal },
@@ -198,7 +202,8 @@
               SDE.closeModal();
               G.refresh();
               if (SDE.refreshStatus) SDE.refreshStatus();
-              SDE.toast(`Saved ${changes.length} field(s) in row #${data.__id}`, "success");
+              SDE.toast(`Saved ${changes.length} field(s) in `
+                + ((rowNo != null) ? `row ${rowNo}` : `row #${data.__id}`), "success");
             } catch (e) {
               SDE.toast("Save failed: " + e.message, "error");
             } finally { SDE.busy(false); }

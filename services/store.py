@@ -42,8 +42,22 @@ class DataStore:
         self._lock = threading.RLock()
         # extra payloads kept around for PDF documents
         self.extra: dict[str, Any] = {}
+        # row-id -> duplicate group index, set after "Find duplicates" so an
+        # export can colour each group. Cleared on new file / drop-duplicates.
+        self._dup_groups: dict[int, int] = {}
 
     # -- loading ----------------------------------------------------------
+    def reset(self) -> None:
+        """Clear the current dataset so the editor returns to the open screen."""
+        with self._lock:
+            self._df = None
+            self.meta = FileMeta()
+            self._undo.clear()
+            self._redo.clear()
+            self.extra = {}
+            self._dup_groups = {}
+            self._next_id = 0
+
     def set_dataframe(self, df: pl.DataFrame, meta: FileMeta) -> None:
         with self._lock:
             self._df = self._with_ids(df)
@@ -51,6 +65,7 @@ class DataStore:
             self._undo.clear()
             self._redo.clear()
             self.extra = {}
+            self._dup_groups = {}
 
     def _with_ids(self, df: pl.DataFrame) -> pl.DataFrame:
         if ID_COL in df.columns:
@@ -215,6 +230,32 @@ class DataStore:
             self._snapshot("Group duplicates together")
             self._df = df
 
+    # -- duplicate-group tracking (for coloured export) -------------------
+    def set_duplicate_groups(self, groups: list[list[int]] | None) -> None:
+        """Remember which duplicate group each row id belongs to."""
+        with self._lock:
+            mapping: dict[int, int] = {}
+            for gi, ids in enumerate(groups or []):
+                for rid in ids:
+                    mapping[int(rid)] = gi
+            self._dup_groups = mapping
+
+    def clear_duplicate_groups(self) -> None:
+        with self._lock:
+            self._dup_groups = {}
+
+    @property
+    def dup_groups(self) -> dict[int, int]:
+        return dict(self._dup_groups)
+
+    def row_group_sequence(self) -> list:
+        """Group index per row in current order (None where not a duplicate)."""
+        with self._lock:
+            if self._df is None or not self._dup_groups:
+                return []
+            return [self._dup_groups.get(int(r))
+                    for r in self._df.get_column(ID_COL).to_list()]
+
 
 def _apply_search(
     df: pl.DataFrame, term: str, columns: list[str] | None, mode: str
@@ -269,3 +310,22 @@ def _coerce_for_assign(
 
 # Single shared instance for this single-user application.
 store = DataStore()
+
+
+def drop_all_blank_rows(df: "pl.DataFrame", id_col: str | None = None) -> "pl.DataFrame":
+    """Remove rows whose every DATA cell is blank (null or empty/whitespace).
+
+    A row is dropped ONLY when *all* its data columns are blank — rows that
+    merely contain some empty cells are kept untouched. The optional id_col is
+    excluded from the blank test so the internal __id never counts as data.
+    """
+    cols = [c for c in df.columns if c != id_col]
+    if not cols or df.height == 0:
+        return df
+    blank = None
+    for c in cols:
+        is_blank = (pl.col(c).is_null()
+                    | (pl.col(c).cast(pl.Utf8, strict=False)
+                         .str.strip_chars().fill_null("") == ""))
+        blank = is_blank if blank is None else (blank & is_blank)
+    return df.filter(~blank)

@@ -1,4 +1,4 @@
-"""Application configuration for the Accessibility Tools.
+"""Application configuration for the Smart Document Editor & Validator.
 
 Single-user / small-team local application. Authentication is backed by a
 local SQLite database (login only; users are provisioned by an administrator

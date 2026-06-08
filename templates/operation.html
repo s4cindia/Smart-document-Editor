@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ title }} — Accessibility Tools</title>
+  <title>{{ title }} — Smart Document Editor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -142,15 +142,6 @@
 </head>
 <body>
   {% include "partials/topbar.html" %}
-  <div class="topbar">
-    <a class="back" href="{{ url_for('main.dashboard') }}">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></svg>
-      Back to dashboard
-    </a>
-    <div class="spacer"></div>
-    <span class="brand">Accessibility Tools</span>
-  </div>
 
   <main class="wrap">
     <div class="page-head">
@@ -165,13 +156,14 @@
     <!-- SOURCE -->
     <section class="card">
       <h2>Source file{{ 's' if multiple else '' }}</h2>
-      <label class="dropzone" id="dropzone" tabindex="0">
+      <div class="dropzone" id="dropzone" role="button" tabindex="0"
+           aria-label="Choose a file to upload">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M5 20h14a2 2 0 0 0 2-2v-2"/><path d="M3 16v2a2 2 0 0 0 2 2"/></svg>
         <span id="dzText">Drag &amp; drop {{ 'files' if multiple else 'a file' }} here, or click to browse</span>
         <input type="file" id="fileInput" accept="{{ accept }}" {% if multiple %}multiple{% endif %} hidden>
-      </label>
+      </div>
       <div class="muted" style="margin-top:10px">Accepted: {{ accept }}</div>
       <table class="files-table" id="filesTable" hidden>
         <thead><tr><th>File</th><th>Size</th><th></th></tr></thead>
@@ -254,7 +246,7 @@
     </section>
   </main>
 
-  <footer>Accessibility Tools &middot; Local workspace</footer>
+  <footer>Smart Document Editor &middot; Local workspace</footer>
   <div id="toasts"></div>
 
   <script type="application/json" id="opConfig">

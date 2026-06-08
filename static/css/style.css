@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Accessibility Tools — design system
+   Smart Document Editor & Validator — design system
    Refined, professional data-tool aesthetic. Light + dark themes.
    ========================================================================== */
 
@@ -501,8 +501,8 @@ canvas { max-width: 100%; }
 .dup-g7 { background: rgba(100, 116, 139, .18) !important; } /* slate  */
 .error-cell { background: rgba(220, 38, 38, .14) !important; }
 /* missing/blank values highlighted blue on open (requirement) */
-.missing-cell { background: rgba(37, 99, 235, .22) !important;
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .45); }
+.missing-cell { background: #FEE2E2 !important;
+  box-shadow: inset 0 0 0 1px rgba(220, 38, 38, .25); }
 
 /* ==========================================================================
    Column manager checklist + panel extras (appended)
@@ -655,4 +655,27 @@ canvas { max-width: 100%; }
 @media (max-width:720px){ .save-state{ display:none; } .ribbon-save{ padding:8px 14px; } }
 
 /* Summary cells that exceed 215 chars or contain a newline (preview highlight) */
-.summary-overflow-cell { background: #FFF59D !important; }
+.summary-overflow-cell { background: #DCFCE7 !important; }
+
+/* ----------------------------------------------------------------------
+   Hand (pointer) cursor across the editor page. Inputs/areas that accept
+   typing keep a text caret, and column resizers keep the resize cursor.
+   ---------------------------------------------------------------------- */
+body, body * { cursor: pointer; }
+input[type="text"], input[type="search"], input[type="number"],
+input[type="email"], input[type="password"], textarea, select,
+[contenteditable="true"], .row-editor textarea,
+.ag-cell-inline-editing, .ag-input-field-input, .ag-text-field-input {
+  cursor: text;
+}
+.ag-header-cell-resize, [class*="-resize"] { cursor: col-resize; }
+
+/* Duplicate-basis info button (next to Check) */
+.dup-info-btn { color: var(--accent, #2563eb); }
+/* Mini download button used in the Downloads list */
+.btn-mini { display:inline-flex; align-items:center; gap:6px; font-size:12px;
+  font-weight:600; color:#2563eb; background:#eff6ff; border:1px solid #dbeafe;
+  border-radius:7px; padding:5px 10px; }
+.btn-mini:hover { background:#2563eb; color:#fff; border-color:#2563eb; }
+.chip { display:inline-block; font-size:12px; font-weight:600; color:#1f2937;
+  background:#eef2f7; border:1px solid #e2e8f0; border-radius:999px; padding:3px 10px; }

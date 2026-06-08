@@ -1,4 +1,4 @@
-"""Accessibility Tools — Flask application entry point.
+"""Smart Document Editor & Validator — Flask application entry point.
 
 Modular, blueprint-based architecture. Each feature lives in its own package
 (auth, dashboard, smart_editor, merge_axe, axe_to_excel, downloadable_audit,
@@ -27,7 +27,7 @@ log = logging.getLogger("smart_doc_editor")
 
 # Single source of truth for the build/asset version. Bump this to force
 # browsers to reload updated css/js and to confirm a fresh build is running.
-ASSET_VERSION = "52"
+ASSET_VERSION = "63"
 
 # ---------------------------------------------------------------------------
 # Temporarily disabled features.
@@ -38,7 +38,7 @@ ASSET_VERSION = "52"
 # actually runs. To RE-ENABLE a feature later, just remove its key from
 # DISABLED_FEATURES (or set it to an empty set to enable everything).
 # ---------------------------------------------------------------------------
-DISABLED_FEATURES = {"axe2excel", "delivery", "downloadable", "vpat_editor"}
+DISABLED_FEATURES: set[str] = set()   # all features enabled
 
 # Page URLs (show the disabled notice) per feature.
 _FEATURE_PAGE_PREFIXES = {
@@ -158,7 +158,7 @@ def create_app() -> Flask:
         log.error("Unhandled error: %s\n%s", exc, traceback.format_exc())
         return jsonify({"ok": False, "error": str(exc)}), 500
 
-    log.info("Accessibility Tools ready (modular blueprints registered).")
+    log.info("Smart Document Editor ready (modular blueprints registered).")
     return app
 
 
@@ -167,7 +167,7 @@ app = create_app()
 
 if __name__ == "__main__":
     print("=" * 60)
-    print(" Accessibility Tools")
+    print(" Smart Document Editor & Validator")
     print(f" BUILD v{ASSET_VERSION}")
     print(" Open your browser at:  http://127.0.0.1:5000")
     print(" Auto-reload is ON — replacing files restarts the app.")

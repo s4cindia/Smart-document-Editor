@@ -16,7 +16,7 @@ from flask import abort, jsonify, render_template
 
 from config import config
 from services import (csv_service, excel_service, feature_service, pdf_service)
-from services.store import FileMeta, store
+from services.store import FileMeta, store, drop_all_blank_rows
 from utils import file_utils
 from utils.helpers import data_columns
 
@@ -88,7 +88,7 @@ def feature_response(outputs, stats, preview):
 # --------------------------------------------------------------------------
 # Loaders (tabular + pdf) — shared by the editor + merge-open
 # --------------------------------------------------------------------------
-def load_tabular(path: Path, sheet: str | None = None) -> None:
+def load_tabular(path: Path, sheet: str | None = None, max_cols: int = 18) -> None:
     ext = path.suffix.lower()
     if ext in (".xlsx", ".xls"):
         df = excel_service.read_sheet(path, sheet)
@@ -98,10 +98,14 @@ def load_tabular(path: Path, sheet: str | None = None) -> None:
         source = "csv"
     else:
         raise ValueError(f"Unsupported tabular type: {ext}")
-    # AXE exports only ever use columns A-R (18 columns). Ignore anything past
-    # column R so stray trailing content never reaches the editor.
-    if df.width > 18:
-        df = df.select(df.columns[:18])
+    # Trim trailing columns beyond the expected range so stray content never
+    # reaches the editor. Merge / main editor keep A-R (18); the delivery
+    # editor keeps A-W (23). Controlled by max_cols from the caller.
+    if df.width > max_cols:
+        df = df.select(df.columns[:max_cols])
+    # Remove rows where the WHOLE row is blank (every cell null/empty) so the
+    # user only ever sees real data. Rows with some empty cells are kept.
+    df = drop_all_blank_rows(df)
     meta = FileMeta(
         path=str(path), name=path.name, ext=ext,
         size=file_utils.human_size(path.stat().st_size),

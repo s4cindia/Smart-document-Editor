@@ -114,11 +114,14 @@ def export_via_template(df: pl.DataFrame, stem: str = "delivery") -> tuple[Path,
     if WCAG_TEMPLATE.exists():
         try:
             _fill_template(df, out)
+            from services.excel_service import trim_trailing_blank_rows
+            trim_trailing_blank_rows(out)
             return out, True
         except Exception:  # noqa: BLE001
             pass
-    from services.excel_service import write_excel
+    from services.excel_service import write_excel, trim_trailing_blank_rows
     write_excel(df, out, sheet_name="Delivery")
+    trim_trailing_blank_rows(out)
     return out, False
 
 

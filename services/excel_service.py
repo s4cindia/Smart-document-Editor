@@ -62,7 +62,7 @@ def highlight_summary_cells(path: str | Path, sheet_name: str | None = None) -> 
 
     path = Path(path)
     wb = load_workbook(path)
-    fill = PatternFill("solid", fgColor="FFFF00")
+    fill = PatternFill("solid", fgColor="DCFCE7")
     changed = False
     sheets = ([wb[sheet_name]] if sheet_name and sheet_name in wb.sheetnames
               else list(wb.worksheets))
@@ -120,7 +120,7 @@ def _write_xlsx(df: pl.DataFrame, out_path: str | Path,
         # No highlighting: header is plain bold text (no fill), and no
         # summary/length highlighting is applied to data cells.
         header_fmt = wb.add_format({"bold": True})
-        missing_fmt = wb.add_format({"bg_color": "#2563eb"})
+        missing_fmt = wb.add_format({"bg_color": "#FEE2E2"})
 
         widths = [len(str(c)) for c in cols]
         for j, col in enumerate(cols):
@@ -142,3 +142,70 @@ def _write_xlsx(df: pl.DataFrame, out_path: str | Path,
             ws.set_column(j, j, min(max(w + 2, 8), 60))
         ws.freeze_panes(1, 0)
     return out_path
+
+
+# Light, distinct fills for duplicate groups (cycled). Mirror the on-screen
+# .dup-g0..g7 palette but as soft solid colours that read well in Excel.
+_DUP_GROUP_FILLS = [
+    "FDEBD0", "DCEAFF", "D9F2E0", "FBD9E8",
+    "ECDCF7", "D5F0EC", "FBE2D0", "E2E8F0",
+]
+
+
+def highlight_duplicate_rows(path: str | Path, row_groups, sheet_name=None) -> bool:
+    """Tint each data row by its duplicate-group index using a light palette.
+
+    *row_groups* is a list aligned to the data rows in file order; each entry
+    is a group index (0,1,2,…) or None for a non-duplicate row.
+    """
+    from openpyxl import load_workbook
+    from openpyxl.styles import PatternFill
+
+    if not row_groups:
+        return False
+    path = Path(path)
+    wb = load_workbook(path)
+    fills = [PatternFill("solid", fgColor=c) for c in _DUP_GROUP_FILLS]
+    changed = False
+    ws = (wb[sheet_name] if sheet_name and sheet_name in wb.sheetnames
+          else wb.worksheets[0])
+    max_col = ws.max_column
+    for i, grp in enumerate(row_groups):
+        if grp is None:
+            continue
+        fill = fills[int(grp) % len(fills)]
+        r = i + 2
+        for c in range(1, max_col + 1):
+            ws.cell(r, c).fill = fill
+        changed = True
+    if changed:
+        wb.save(path)
+    wb.close()
+    return changed
+
+
+def trim_trailing_blank_rows(path, sheet_name=None) -> bool:
+    """Delete rows that contain no data so the file's used range ends at the
+    last real row. Removes leftover template / empty rows at the bottom of a
+    downloaded workbook (a row counts as data if any cell is non-empty)."""
+    from openpyxl import load_workbook
+    p = Path(path)
+    try:
+        wb = load_workbook(p)
+    except Exception:  # noqa: BLE001
+        return False
+    targets = ([wb[sheet_name]] if sheet_name and sheet_name in wb.sheetnames
+               else list(wb.worksheets))
+    changed = False
+    for ws in targets:
+        maxr = ws.max_row or 0
+        last = 0
+        for r in range(1, maxr + 1):
+            if any(c.value is not None and str(c.value).strip() != "" for c in ws[r]):
+                last = r
+        if 0 <= last < maxr:
+            ws.delete_rows(last + 1, maxr - last)
+            changed = True
+    if changed:
+        wb.save(p)
+    return changed
