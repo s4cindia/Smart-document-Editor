@@ -39,7 +39,12 @@ def read_sheet(path: str | Path, sheet: str | int | None = None) -> pl.DataFrame
     pdf = pd.read_excel(path, sheet_name=sheet_name, dtype=object)
     pdf = pdf.where(pd.notnull(pdf), None)
     pdf.columns = [str(c) for c in pdf.columns]
-    return pl.from_pandas(pdf)
+    # Build the Polars frame from plain Python lists rather than via
+    # pl.from_pandas(): the latter requires pyarrow for object/nullable
+    # ("Int64") columns, which Excel reads produce. strict=False lets Polars
+    # infer a sensible dtype per column even when values are mixed.
+    data = {col: pdf[col].tolist() for col in pdf.columns}
+    return pl.DataFrame(data, strict=False)
 
 
 def highlight_summary_cells(path: str | Path, sheet_name: str | None = None) -> bool:
