@@ -1,4 +1,4 @@
-# Smart Document Editor & Validator
+# Accessibility Tools
 
 A web-based toolkit for **digital accessibility auditing and document remediation**.
 

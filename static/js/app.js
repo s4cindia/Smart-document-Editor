@@ -1,5 +1,5 @@
 /* =========================================================================
-   Smart Document Editor & Validator — core application logic
+   Accessibility Tools — core application logic
    Shared namespace: window.SDE
    ========================================================================= */
 window.SDE = window.SDE || {};

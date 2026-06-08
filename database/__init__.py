@@ -1,4 +1,4 @@
-"""Database package for the Smart Document Editor.
+"""Database package for the Accessibility Tools.
 
 Backend-agnostic (MySQL or SQLite) via SQLAlchemy. Exposes the engine helpers
 (db.py) and the user data-access layer (models.py). Import `init_db()` at app

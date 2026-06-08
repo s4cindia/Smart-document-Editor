@@ -1,4 +1,4 @@
-"""Smart Document Editor & Validator — Flask application entry point.
+"""Accessibility Tools — Flask application entry point.
 
 Modular, blueprint-based architecture. Each feature lives in its own package
 (auth, dashboard, smart_editor, merge_axe, axe_to_excel, downloadable_audit,
@@ -158,7 +158,7 @@ def create_app() -> Flask:
         log.error("Unhandled error: %s\n%s", exc, traceback.format_exc())
         return jsonify({"ok": False, "error": str(exc)}), 500
 
-    log.info("Smart Document Editor ready (modular blueprints registered).")
+    log.info("Accessibility Tools ready (modular blueprints registered).")
     return app
 
 
@@ -167,7 +167,7 @@ app = create_app()
 
 if __name__ == "__main__":
     print("=" * 60)
-    print(" Smart Document Editor & Validator")
+    print(" Accessibility Tools")
     print(f" BUILD v{ASSET_VERSION}")
     print(" Open your browser at:  http://127.0.0.1:5000")
     print(" Auto-reload is ON — replacing files restarts the app.")

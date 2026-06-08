@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Administrator CLI for provisioning Smart Document Editor accounts.
+"""Administrator CLI for provisioning Accessibility Tools accounts.
 
 There is no self-registration anywhere in the application. Accounts are
 created here, by someone with shell access to the server.
@@ -63,7 +63,7 @@ def add_users_from_csv(path: str) -> int:
 
 
 def _interactive() -> int:
-    print("Create a Smart Document Editor user (Ctrl+C to cancel)\n")
+    print("Create an Accessibility Tools user (Ctrl+C to cancel)\n")
     username = input("Username (3-32 chars): ").strip()
     password = getpass.getpass("Password (min 6 chars): ")
     confirm = getpass.getpass("Confirm password: ")
@@ -76,7 +76,7 @@ def _interactive() -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Create a Smart Document Editor user account.")
+        description="Create an Accessibility Tools user account.")
     parser.add_argument("--username", "-u")
     parser.add_argument("--password", "-p")
     parser.add_argument("--role", "-r", default="user",
