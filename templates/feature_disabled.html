@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Temporarily unavailable — Smart Document Editor{% endblock %}
+{% block body %}
+<div style="min-height:60vh; display:flex; align-items:center; justify-content:center; padding:40px;">
+  <div style="max-width:560px; text-align:center; background:#fff; border:1px solid #e6e9ef;
+              border-radius:18px; padding:44px 38px; box-shadow:0 24px 60px -30px rgba(15,23,42,.4);">
+    <div style="width:78px; height:78px; margin:0 auto 16px; border-radius:20px; display:grid;
+                place-items:center; background:#fffbeb; color:#d97706;">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/><path d="M12 7v5"/><path d="M12 16h.01"/></svg>
+    </div>
+    <h1 style="margin:0 0 10px; font-size:23px; color:#0f172a;">Temporarily unavailable</h1>
+    <p style="margin:0 0 24px; color:#64748b; font-size:14.5px; line-height:1.65;">
+      This feature has been temporarily disabled and isn't available right now.
+      It will be switched back on soon. Thanks for your patience.
+    </p>
+    <a href="{{ url_for('main.dashboard') }}"
+       style="display:inline-flex; align-items:center; gap:8px; text-decoration:none;
+              background:#4f46e5; color:#fff; font-weight:600; font-size:14px;
+              padding:11px 20px; border-radius:10px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      Back to dashboard
+    </a>
+  </div>
+</div>
+{% endblock %}

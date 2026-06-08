@@ -112,12 +112,10 @@ def _write_xlsx(df: pl.DataFrame, out_path: str | Path,
     import xlsxwriter
     with xlsxwriter.Workbook(str(out_path)) as wb:
         ws = wb.add_worksheet(sheet_name[:31])
-        header_fmt = wb.add_format({
-            "bold": True, "bg_color": "#2563eb", "font_color": "#ffffff",
-        })
+        # No highlighting: header is plain bold text (no fill), and no
+        # summary/length highlighting is applied to data cells.
+        header_fmt = wb.add_format({"bold": True})
         missing_fmt = wb.add_format({"bg_color": "#2563eb"})
-        # Yellow fill for over-long / multi-line Summary cells.
-        summary_fmt = wb.add_format({"bg_color": "#FFFF00"})
 
         widths = [len(str(c)) for c in cols]
         for j, col in enumerate(cols):
@@ -131,14 +129,7 @@ def _write_xlsx(df: pl.DataFrame, out_path: str | Path,
                     # plain: leave the cell empty, no formatting
                 else:
                     text = str(val)
-                    # Summary-only rule: flag cells that are too long or that
-                    # carry forced line breaks (text/values are left untouched).
-                    if j in summary_idx and (
-                        len(text) > 215 or "\n" in text or "\r\n" in text
-                    ):
-                        ws.write(i, j, text, summary_fmt)
-                    else:
-                        ws.write(i, j, text)
+                    ws.write(i, j, text)
                     if len(text) > widths[j]:
                         widths[j] = len(text)
 

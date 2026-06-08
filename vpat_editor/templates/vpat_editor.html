@@ -5,6 +5,8 @@
   /* VPAT page is a fixed full-screen panel; override the app shell's
      body{overflow:hidden} only in a way that lets the inner area scroll. */
   html, body{ height:100% !important; overflow:hidden !important; }
+  /* stack the global header above the VPAT panel */
+  body{ display:flex; flex-direction:column; }
 
   .vp{
     --navy:#0f172a; --navy2:#1e293b; --ink:#0f172a; --body:#334155; --muted:#64748b;
@@ -12,7 +14,7 @@
     --link:#2563eb; --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --na:#64748b; --ne:#94a3b8;
     --radius:16px; --shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px -16px rgba(16,24,40,.25);
     --font:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
-    position:fixed; inset:0; display:flex; flex-direction:column;
+    position:relative; flex:1 1 auto; min-height:0; display:flex; flex-direction:column;
     background:
       radial-gradient(1200px 400px at 80% -10%, rgba(99,102,241,.10), transparent 60%),
       var(--bg);
@@ -189,6 +191,63 @@
     .grid2{ grid-template-columns:1fr; } .term{ grid-template-columns:1fr; }
     .crit-head{ flex-direction:column; } .crit-head select{ width:100%; }
   }
+  /* gate (shown until a file is loaded) */
+  .vp-gate{ flex:1; display:flex; align-items:center; justify-content:center; padding:30px; }
+  .vp-gate[hidden]{ display:none; }
+  .vp-gate-card{ max-width:560px; text-align:center; background:#fff; border:1px solid var(--line);
+    border-radius:18px; padding:40px 36px; box-shadow:0 24px 60px -30px rgba(15,23,42,.4); }
+  .vp-gate-ico{ width:78px; height:78px; margin:0 auto 14px; border-radius:20px; display:grid; place-items:center;
+    background:#eef2ff; color:var(--accent); }
+  .vp-gate-card h2{ margin:0 0 8px; font-size:22px; color:var(--ink); }
+  .vp-gate-card p{ margin:0 0 22px; color:#64748b; font-size:14px; line-height:1.6; }
+  .vp-gate-actions{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+
+  /* required-field asterisk + invalid highlight */
+  .req{ color:#dc2626; font-weight:700; }
+  .fld input.bad, .fld textarea.bad{ border-color:#dc2626 !important; background:#fef2f2; }
+
+  /* read-only conformance badge (was an editable dropdown) */
+  .conf-badge{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700;
+    padding:5px 12px; border-radius:999px; white-space:nowrap; border:1px solid transparent; }
+  .conf-badge .dot{ width:8px; height:8px; border-radius:50%; background:var(--bar,#cbd5e1); }
+  .conf-badge.s{ background:#f0fdf4; color:#166534; border-color:#bbf7d0; }
+  .conf-badge.p{ background:#fffbeb; color:#92400e; border-color:#fde68a; }
+  .conf-badge.d{ background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+  .conf-badge.n{ background:#f1f5f9; color:#475569; border-color:#e2e8f0; }
+  .conf-badge.e{ background:#f8fafc; color:#94a3b8; border-color:#e2e8f0; }
+
+  /* terms: left (name) read-only */
+  .term .tn-static{ font-weight:700; color:var(--ink); font-size:13.5px; padding:10px 12px;
+    background:#f8fafc; border:1px solid var(--line); border-radius:10px; display:flex; align-items:center; }
+
+  /* lightweight modal */
+  .vp-modal-overlay{ position:fixed; inset:0; background:rgba(2,6,23,.66); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; z-index:120; }
+  .vp-modal-overlay[hidden]{ display:none; }
+  .vp-modal{ width:560px; max-width:calc(100vw - 40px); max-height:calc(100vh - 80px);
+    background:#fff; border-radius:16px; box-shadow:0 30px 70px -25px rgba(2,6,23,.6);
+    display:flex; flex-direction:column; overflow:hidden; }
+  .vp-modal-head{ display:flex; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  .vp-modal-head h3{ margin:0; font-size:16px; color:var(--ink); }
+  .vp-modal-x{ margin-left:auto; border:0; background:#f1f5f9; width:30px; height:30px; border-radius:8px;
+    font-size:19px; cursor:pointer; color:#475569; line-height:1; }
+  .vp-modal-body{ padding:20px; overflow:auto; }
+  .vp-modal-foot{ padding:14px 20px; border-top:1px solid var(--line); display:flex; gap:10px; justify-content:flex-end;
+    background:#f8fafc; }
+  /* summary cards */
+  .sum-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:8px; }
+  .sum-card{ border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .sum-card .big{ font-size:26px; font-weight:800; }
+  .sum-card .lbl{ font-size:12px; color:#64748b; margin-top:2px; }
+  .sum-card.bad .big{ color:#dc2626; } .sum-card.warn .big{ color:#d97706; } .sum-card.ok .big{ color:#16a34a; }
+  .sum-row{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f1f5f9; font-size:14px; }
+  .sum-row b{ font-variant-numeric:tabular-nums; }
+  /* recent list */
+  .rec-item{ display:flex; align-items:center; gap:12px; padding:11px 12px; border:1px solid var(--line);
+    border-radius:10px; margin-bottom:8px; cursor:pointer; }
+  .rec-item:hover{ background:#f8fafc; border-color:#c7d2fe; }
+  .rec-item .nm{ font-weight:700; color:var(--ink); }
+  .rec-item .dt{ margin-left:auto; font-size:12px; color:#64748b; font-variant-numeric:tabular-nums; }
 </style>
 
 <div class="vp">
@@ -200,17 +259,34 @@
     </div>
     <span class="vp-build">BUILD {{ build }}</span>
     <div class="spacer"></div>
-    <a class="btn btn-back" href="{{ url_for('main.dashboard') }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> Dashboard</a>
     <button class="btn btn-browse" id="vpBrowse" title="Upload an audit Excel and auto-fill"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M12 3v13"/><path d="M7 8l5-5 5 5"/></svg> Browse</button>
+    <button class="btn btn-ghost" id="vpRecent" title="Recently accessed reports"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Recent</button>
     <button class="btn btn-ghost" id="vpOpen"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg> Open</button>
+    <button class="btn btn-ghost" id="vpSummary" title="Show error summary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg> Summary</button>
     <button class="btn btn-ghost" id="vpSave"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 3v5h7"/><path d="M8 14h8v6H8z"/></svg> Save Draft</button>
+    <button class="btn btn-ghost" id="vpSaveAs" title="Save under a name (reopen from Recent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 3v5h7"/><path d="M12 14v5M9.5 16.5h5"/></svg> Save As</button>
+    <button class="btn btn-ghost" id="vpClear" title="Clear this report and open another file"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/></svg> Clear</button>
     <button class="btn btn-primary" id="vpExport"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h8l4 4v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v4h4"/><path d="M8 13h8"/><path d="M8 17h5"/></svg> Export PDF</button>
     <input type="file" id="vpDraftInput" accept=".json" hidden>
     <input type="file" id="vpXlsxInput" accept=".xlsx,.xls,.csv,.tsv" hidden>
   </header>
 
+  <!-- gate: editor content stays hidden until a file is uploaded -->
+  <div class="vp-gate" id="vpGate">
+    <div class="vp-gate-card">
+      <div class="vp-gate-ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M12 3v13"/><path d="M7 8l5-5 5 5"/></svg></div>
+      <h2>Start your VPAT report</h2>
+      <p>Upload an accessibility audit (Excel/CSV) to auto-fill the conformance tables, or open a saved report. The editor opens once a file is loaded.</p>
+      <div class="vp-gate-actions">
+        <button class="btn btn-browse" id="vpGateBrowse"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M12 3v13"/><path d="M7 8l5-5 5 5"/></svg> Browse audit file</button>
+        <button class="btn btn-ghost" id="vpGateRecent"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Recent</button>
+        <button class="btn btn-ghost" id="vpGateOpen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg> Open saved report</button>
+      </div>
+    </div>
+  </div>
+
   <!-- section tabs -->
-  <nav class="vp-tabs" id="vpTabs">
+  <nav class="vp-tabs" id="vpTabs" hidden>
     <span class="lbl">SECTIONS</span>
     <button class="vp-tab active" data-go="sec-overview">Overview</button>
     <button class="vp-tab" data-go="sec-standards">Standards</button>
@@ -226,23 +302,23 @@
   </nav>
 
   <!-- scroll area -->
-  <div class="vp-scroll" id="vpScroller">
+  <div class="vp-scroll" id="vpScroller" hidden>
     <div class="vp-inner">
 
       <section class="vp-card" id="sec-overview">
         <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg></div>
           <h2>Report Overview</h2></div>
-        <p class="hint">Product metadata that appears at the top of the report.</p>
-        <div class="fld"><label>Report Title</label><input data-f="title"></div>
-        <div class="fld"><label>Subtitle</label><input data-f="subtitle"></div>
+        <p class="hint">Product metadata that appears at the top of the report. <b>All fields are required.</b></p>
+        <div class="fld"><label>Report Title <span class="req">*</span></label><input data-f="title" data-req></div>
+        <div class="fld"><label>Subtitle <span class="req">*</span></label><input data-f="subtitle" data-req></div>
         <div class="grid2">
-          <div class="fld"><label>Name of Product / Version</label><input data-f="product"></div>
-          <div class="fld"><label>Report Date</label><input data-f="report_date"></div>
+          <div class="fld"><label>Name of Product / Version <span class="req">*</span></label><input data-f="product" data-req></div>
+          <div class="fld"><label>Report Date <span class="req">*</span></label><input data-f="report_date" data-req></div>
         </div>
-        <div class="fld"><label>Product Description</label><textarea data-f="description"></textarea></div>
-        <div class="fld"><label>Contact Information</label><input data-f="contact"></div>
-        <div class="fld"><label>Notes</label><textarea data-f="notes" style="min-height:140px"></textarea></div>
-        <div class="fld"><label>Evaluation Methods Used (one per line)</label><textarea data-f="eval_methods" style="min-height:120px"></textarea></div>
+        <div class="fld"><label>Product Description <span class="req">*</span></label><textarea data-f="description" data-req></textarea></div>
+        <div class="fld"><label>Contact Information <span class="req">*</span></label><input data-f="contact" data-req></div>
+        <div class="fld"><label>Notes <span class="req">*</span></label><textarea data-f="notes" data-req style="min-height:140px"></textarea></div>
+        <div class="fld"><label>Evaluation Methods Used (one per line) <span class="req">*</span></label><textarea data-f="eval_methods" data-req style="min-height:120px"></textarea></div>
       </section>
 
       <section class="vp-card" id="sec-standards">
@@ -258,14 +334,14 @@
       <section class="vp-card" id="sec-terms">
         <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4a2 2 0 0 1 2-2h11v16H7a2 2 0 0 0-2 2z"/><path d="M5 20a2 2 0 0 1 2-2h11"/></svg></div>
           <h2>Conformance Terms</h2></div>
-        <p class="hint">The terms used in the Conformance Level column. Definitions are editable.</p>
+        <p class="hint">The terms used in the Conformance Level column. Only the definitions on the right are editable.</p>
         <div id="vpTerms"></div>
       </section>
 
       <section class="vp-card" id="sec-t1">
         <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M9 4v16"/></svg></div>
           <h2>Table 1 · Success Criteria, Level A</h2></div>
-        <p class="hint">Choose a conformance level and edit the remarks for each criterion.</p>
+        <p class="hint">Conformance is set automatically from the uploaded audit. Edit the remarks for each criterion.</p>
         <div class="crit-tools">
           <div class="crit-filter"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
             <input type="text" placeholder="Filter criteria…" data-filter="level_a"></div>
@@ -277,7 +353,7 @@
       <section class="vp-card" id="sec-t2">
         <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M9 4v16"/></svg></div>
           <h2>Table 2 · Success Criteria, Level AA</h2></div>
-        <p class="hint">Choose a conformance level and edit the remarks for each criterion.</p>
+        <p class="hint">Conformance is set automatically from the uploaded audit. Edit the remarks for each criterion.</p>
         <div class="crit-tools">
           <div class="crit-filter"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
             <input type="text" placeholder="Filter criteria…" data-filter="level_aa"></div>
@@ -289,7 +365,7 @@
       <section class="vp-card" id="sec-t3">
         <div class="vp-chead"><div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M9 4v16"/></svg></div>
           <h2>Table 3 · Success Criteria, Level AAA</h2></div>
-        <p class="hint">Choose a conformance level and edit the remarks for each criterion.</p>
+        <p class="hint">Conformance is set automatically from the uploaded audit. Edit the remarks for each criterion.</p>
         <div class="crit-tools">
           <div class="crit-filter"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
             <input type="text" placeholder="Filter criteria…" data-filter="level_aaa"></div>
@@ -327,6 +403,16 @@
     </div>
     <div class="vp-prev-body" id="vpPrevBody"></div>
   </aside>
+
+  <!-- lightweight modal (summary / recent / save-as) -->
+  <div class="vp-modal-overlay" id="vpModalOverlay" hidden>
+    <div class="vp-modal" id="vpModal">
+      <div class="vp-modal-head"><h3 id="vpModalTitle">Summary</h3>
+        <button class="vp-modal-x" id="vpModalClose">&times;</button></div>
+      <div class="vp-modal-body" id="vpModalBody"></div>
+      <div class="vp-modal-foot" id="vpModalFoot"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -338,12 +424,137 @@
   const W3C22="https://www.w3.org/WAI/WCAG22/Understanding/", W3C21="https://www.w3.org/WAI/WCAG21/Understanding/";
   const SLUGS = {{ slugs | tojson }};
   let DATA = {{ data | tojson }};
+  const PRISTINE = JSON.parse(JSON.stringify(DATA));   // blanked default to reset to
   const filters = { level_a:"", level_aa:"", level_aaa:"" };
 
   function scUrl(crit){ const sc=(crit||"").trim().split(/\s+/)[0]; const slug=SLUGS[sc];
     return slug ? (sc==="4.1.1"?W3C21:W3C22)+slug+".html" : null; }
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
   function toast(m,t){ if(window.SDE&&SDE.toast) SDE.toast(m,t||"info"); else alert(m); }
+
+  /* ---- gate: reveal editor only after a file loads ---- */
+  const gate=document.getElementById("vpGate");
+  const tabsNav=document.getElementById("vpTabs");
+  const scrollArea=document.getElementById("vpScroller");
+  let revealed=false;
+  function revealEditor(){ if(revealed) return; revealed=true; gate.hidden=true; tabsNav.hidden=false; scrollArea.hidden=false; }
+  function clearEditor(){
+    DATA = JSON.parse(JSON.stringify(PRISTINE));
+    lastPreview = null;
+    ["level_a","level_aa","level_aaa"].forEach(k=>{ filters[k]=""; });
+    document.querySelectorAll("[data-filter]").forEach(i=>{ i.value=""; });
+    try{ renderAll(); }catch(e){}
+    document.querySelectorAll("[data-req].bad").forEach(el=>el.classList.remove("bad"));
+    revealed=false;
+    gate.hidden=false; tabsNav.hidden=true; scrollArea.hidden=true;
+    if(typeof closePreview==="function") closePreview();
+    if(scrollArea) scrollArea.scrollTop=0;
+    toast("Cleared — upload or open another report","info");
+  }
+
+  /* ---- lightweight modal ---- */
+  const mOverlay=document.getElementById("vpModalOverlay"), mTitle=document.getElementById("vpModalTitle"),
+        mBody=document.getElementById("vpModalBody"), mFoot=document.getElementById("vpModalFoot");
+  function openModal(title, bodyHTML, buttons){
+    mTitle.textContent=title; mBody.innerHTML=bodyHTML; mFoot.innerHTML="";
+    (buttons||[{label:"Close"}]).forEach(b=>{ const el=document.createElement("button");
+      el.className="btn "+(b.primary?"btn-primary":"btn-ghost"); el.textContent=b.label;
+      el.onclick=b.onClick||closeModal; mFoot.appendChild(el); });
+    mOverlay.hidden=false;
+  }
+  function closeModal(){ mOverlay.hidden=true; }
+  document.getElementById("vpModalClose").onclick=closeModal;
+  mOverlay.addEventListener("click", e=>{ if(e.target===mOverlay) closeModal(); });
+
+  /* ---- error summary (Yes/No standards + Tables 1/2/3) ---- */
+  function computeSummary(){
+    let stdNo=0, stdYes=0;
+    ["2.0","2.1","2.2"].forEach(v=>["A","AA","AAA"].forEach(l=>{
+      const val=((DATA.standards||{})[v]||{})[l]; if(val==="No") stdNo++; else if(val==="Yes") stdYes++; }));
+    const tbl=(lvl)=>{ const c={s:0,p:0,d:0,n:0,e:0}; (DATA[lvl]||[]).forEach(r=>{ const k=CHIPCLS[r[1]]||"e"; c[k]++; });
+      return {total:(DATA[lvl]||[]).length, ...c}; };
+    return { stdNo, stdYes, t1:tbl("level_a"), t2:tbl("level_aa"), t3:tbl("level_aaa") };
+  }
+  function summaryHTML(){
+    const s=computeSummary();
+    const errTotal=s.t1.d+s.t2.d+s.t3.d, partTotal=s.t1.p+s.t2.p+s.t3.p;
+    const tcard=(name,t)=>`<div class="sum-row"><span>${name} — ${t.total} criteria</span>
+      <span><b style="color:#dc2626">${t.d}</b> fail · <b style="color:#d97706">${t.p}</b> partial · <b style="color:#16a34a">${t.s}</b> ok</span></div>`;
+    return `<div class="sum-grid">
+        <div class="sum-card bad"><div class="big">${errTotal}</div><div class="lbl">Does Not Support (errors)</div></div>
+        <div class="sum-card warn"><div class="big">${partTotal}</div><div class="lbl">Partially Supports</div></div>
+        <div class="sum-card"><div class="big">${s.stdNo}</div><div class="lbl">Standards marked “No”</div></div>
+      </div>
+      <div style="margin-top:10px">
+        <div class="sum-row" style="font-weight:700;border-bottom:2px solid #e2e8f0"><span>Yes / No standards table</span><b>${s.stdYes} Yes · ${s.stdNo} No</b></div>
+        ${tcard("Table 1 · Level A", s.t1)}
+        ${tcard("Table 2 · Level AA", s.t2)}
+        ${tcard("Table 3 · Level AAA", s.t3)}
+      </div>`;
+  }
+  function showSummary(){ openModal("Error summary", summaryHTML(), [{label:"Close", primary:true}]); }
+
+  /* ---- recent reports (with date/time) ---- */
+  async function showRecent(){
+    openModal("Recent reports", "<div style='color:#64748b;font-size:13px'>Loading…</div>", [{label:"Close"}]);
+    try{
+      const j=await (await fetch("/api/vpat-editor/recent")).json();
+      const items=(j.items||[]);
+      if(!items.length){ mBody.innerHTML="<div style='color:#64748b;font-size:13px;padding:6px 2px'>No saved reports yet. Use <b>Save As</b> to create one.</div>"; return; }
+      mBody.innerHTML=items.map(it=>`<div class="rec-item" data-name="${esc(it.name)}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><path d="M6 2h8l4 4v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/></svg>
+        <span class="nm">${esc(it.name)}</span><span class="dt">${esc(it.modified)}</span></div>`).join("");
+      mBody.querySelectorAll(".rec-item").forEach(el=>{ el.onclick=()=>loadRecent(el.dataset.name); });
+    }catch(e){ mBody.innerHTML="<div style='color:#dc2626;font-size:13px'>Could not load recent files.</div>"; }
+  }
+  async function loadRecent(name){
+    try{
+      const j=await (await fetch("/api/vpat-editor/load-draft/"+encodeURIComponent(name))).json();
+      if(!j.ok) throw new Error(j.error||"Load failed");
+      DATA=j.data; renderAll(); revealEditor(); closeModal(); toast("Opened: "+name,"success");
+    }catch(e){ toast(e.message,"error"); }
+  }
+
+  /* ---- Save As (server-side, named) ---- */
+  function showSaveAs(){
+    const dflt=(DATA.product||"vpat_report").toString().trim()||"vpat_report";
+    openModal("Save report as",
+      `<div class="fld"><label>Report name</label><input id="vpSaveAsName" value="${esc(dflt)}"></div>
+       <p class="hint" style="margin:6px 0 0">Saved on the server; reopen it any time from <b>Recent</b>.</p>`,
+      [{label:"Cancel"},{label:"Save", primary:true, onClick:doSaveAs}]);
+    setTimeout(()=>{ const i=document.getElementById("vpSaveAsName"); if(i){ i.focus(); i.select(); } },30);
+  }
+  async function doSaveAs(){
+    const name=((document.getElementById("vpSaveAsName")||{}).value||"").trim();
+    if(!name){ toast("Enter a name","warn"); return; }
+    try{
+      const r=await fetch("/api/vpat-editor/save-as",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({name, data:DATA})});
+      const j=await r.json(); if(!j.ok) throw new Error(j.error||"Save failed");
+      closeModal(); toast("Saved as “"+j.name+"”","success");
+    }catch(e){ toast(e.message,"error"); }
+  }
+
+  /* ---- mandatory Overview validation ---- */
+  function validateRequired(){
+    const reqs=Array.from(document.querySelectorAll("[data-req]"));
+    let firstBad=null; const missing=[];
+    reqs.forEach(el=>{
+      const ok=String(el.value||"").trim().length>0;
+      el.classList.toggle("bad", !ok);
+      if(!ok){ if(!firstBad) firstBad=el; const lab=el.closest(".fld").querySelector("label");
+        missing.push(lab?lab.textContent.replace("*","").trim():el.dataset.f); }
+    });
+    if(missing.length){
+      revealEditor();
+      const ov=document.getElementById("sec-overview");
+      if(ov&&scrollArea){ scrollArea.scrollTo({top: scrollArea.scrollTop + ov.getBoundingClientRect().top - scrollArea.getBoundingClientRect().top - 10, behavior:"smooth"}); }
+      if(firstBad) setTimeout(()=>firstBad.focus(),300);
+      toast("Please fill all required Overview fields: "+missing.join(", "), "error");
+      return false;
+    }
+    return true;
+  }
 
   function renderAll(){
     document.querySelectorAll("[data-f]").forEach(el=>{
@@ -379,9 +590,8 @@
     const box=document.getElementById("vpTerms"); box.innerHTML="";
     (DATA.terms||[]).forEach((t,i)=>{
       const row=document.createElement("div"); row.className="term";
-      const name=document.createElement("input"); name.className="tn"; name.value=t[0]||"";
+      const name=document.createElement("div"); name.className="tn-static"; name.textContent=t[0]||"";
       const def=document.createElement("textarea"); def.value=t[1]||"";
-      name.oninput=()=>{ DATA.terms[i][0]=name.value; };
       def.oninput=()=>{ DATA.terms[i][1]=def.value; };
       row.appendChild(name); row.appendChild(def); box.appendChild(row);
     });
@@ -408,10 +618,11 @@
       const name=document.createElement("div"); name.className="name";
       name.innerHTML = url ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${esc(crit)}</a>`
                            : `<span class="plain">${esc(crit)}</span>`;
-      const sel=document.createElement("select");
-      CONF.forEach(o=>{ const op=document.createElement("option"); op.value=o; op.textContent=o; if(o===conf) op.selected=true; sel.appendChild(op); });
-      sel.onchange=()=>{ DATA[level][i][1]=sel.value; box.style.setProperty("--bar",BAR[sel.value]||"#e2e8f0"); renderSummary(level); };
-      head.appendChild(name); head.appendChild(sel); box.appendChild(head);
+      const badge=document.createElement("span");
+      badge.className="conf-badge "+(CHIPCLS[conf]||"e");
+      badge.style.setProperty("--bar", BAR[conf]||"#cbd5e1");
+      badge.innerHTML = `<span class="dot"></span>${esc(conf||"Not Evaluated")}`;
+      head.appendChild(name); head.appendChild(badge); box.appendChild(head);
       const ta=document.createElement("textarea"); ta.value=remarks||""; ta.placeholder="Remarks and explanations…";
       ta.oninput=()=>{ DATA[level][i][2]=ta.value; };
       box.appendChild(ta); host.appendChild(box);
@@ -483,8 +694,10 @@
       });
     });
     try { renderAll(); } catch(e) { console.error("render after analyse", e); }
+    revealEditor();
     const vtxt = versions.length ? ("WCAG "+versions.join(", ")) : "no WCAG version detected";
     toast(`Analysed audit · ${vtxt} · ${matched} criteria set from ${res.rows} findings`, matched||versions.length ? "success":"info");
+    showSummary();
   }
   document.getElementById("vpBrowse").onclick=()=>document.getElementById("vpXlsxInput").click();
   document.getElementById("vpXlsxInput").onchange=async (e)=>{
@@ -560,6 +773,7 @@
 
   /* ---- Export / Save / Open ---- */
   document.getElementById("vpExport").onclick=async ()=>{
+    if(!validateRequired()) return;
     try{
       const r=await fetch("/api/vpat-editor/export-pdf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(DATA)});
       const j=await r.json(); if(!j.ok) throw new Error(j.error||"Export failed");
@@ -581,10 +795,24 @@
     try{
       const r=await fetch("/api/vpat-editor/open-draft",{method:"POST",body:fd});
       const j=await r.json(); if(!j.ok) throw new Error(j.error||"Open failed");
-      DATA=j.data; renderAll(); toast("Draft loaded","success");
+      DATA=j.data; renderAll(); revealEditor(); toast("Draft loaded","success");
     }catch(err){ toast(err.message,"error"); }
     e.target.value="";
   };
+
+  /* ---- new top-bar + gate actions (Recent / Save As / Summary) ---- */
+  document.getElementById("vpRecent").onclick=showRecent;
+  document.getElementById("vpSaveAs").onclick=showSaveAs;
+  document.getElementById("vpClear").onclick=()=>{
+    if(!revealed){ clearEditor(); return; }
+    openModal("Clear report",
+      "<div style='font-size:14px;color:#334155;line-height:1.55'>Clear the current report and start over so you can open another file? Any unsaved changes will be lost. Reports you saved with <b>Save As</b> stay available under <b>Recent</b>.</div>",
+      [{label:"Cancel"},{label:"Clear", primary:true, onClick:()=>{ closeModal(); clearEditor(); }}]);
+  };
+  document.getElementById("vpSummary").onclick=()=>{ if(!revealed){ toast("Load a file first","info"); return; } showSummary(); };
+  document.getElementById("vpGateBrowse").onclick=()=>document.getElementById("vpXlsxInput").click();
+  document.getElementById("vpGateRecent").onclick=showRecent;
+  document.getElementById("vpGateOpen").onclick=()=>document.getElementById("vpDraftInput").click();
 
   renderAll();
 })();

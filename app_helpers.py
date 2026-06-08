@@ -98,6 +98,10 @@ def load_tabular(path: Path, sheet: str | None = None) -> None:
         source = "csv"
     else:
         raise ValueError(f"Unsupported tabular type: {ext}")
+    # AXE exports only ever use columns A-R (18 columns). Ignore anything past
+    # column R so stray trailing content never reaches the editor.
+    if df.width > 18:
+        df = df.select(df.columns[:18])
     meta = FileMeta(
         path=str(path), name=path.name, ext=ext,
         size=file_utils.human_size(path.stat().st_size),

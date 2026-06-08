@@ -39,13 +39,19 @@ def find_duplicates(df: pl.DataFrame, columns: list[str] | None = None,
     total_dups = flagged.height
     show = flagged.head(limit)
     records = rows_to_records(show.drop("__n"))
-    # __group already JSON-safe (int)
+    # Build id lists per duplicate group (ordered by __group) so the UI can
+    # colour each group of matching rows distinctly.
+    groups: list[list[int]] = [[] for _ in range(group_count)]
+    for rid, grp in flagged.select([ID_COL, "__group"]).iter_rows():
+        if 0 <= grp < group_count:
+            groups[grp].append(rid)
     return {
         "columns": cols,
         "group_count": group_count,
         "duplicate_rows": total_dups,
         "rows": records,
         "duplicate_ids": flagged.get_column(ID_COL).to_list(),
+        "groups": groups,
     }
 
 

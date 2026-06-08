@@ -15,7 +15,7 @@ from vpat_editor.vpat_core import WCAG_SLUGS, default_data, export_pdf, sc_url
 
 log = logging.getLogger("sde.vpat_editor")
 
-VPAT_BUILD = "40"
+VPAT_BUILD = "42"
 
 vpat_editor_bp = Blueprint("vpat_editor", __name__, template_folder="templates")
 
@@ -367,3 +367,67 @@ def open_draft():
     except Exception as exc:  # noqa: BLE001
         return jsonify({"ok": False, "error": f"Invalid draft JSON: {exc}"}), 400
     return jsonify({"ok": True, "data": data})
+
+
+# --------------------------------------------------------------------------
+# Server-side named drafts: "Save As" + "Recent files" (with date/time)
+# --------------------------------------------------------------------------
+def _drafts_dir():
+    d = config.data_dir / "vpat_drafts"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+@vpat_editor_bp.route("/api/vpat-editor/save-as", methods=["POST"])
+def save_as():
+    """Save the current report under a user-chosen name (server-side)."""
+    payload = request.get_json(force=True, silent=True) or {}
+    name = str(payload.get("name", "")).strip()
+    data = payload.get("data") or {}
+    if not name:
+        return jsonify({"ok": False, "error": "Please enter a name for the report."}), 400
+    stem = file_utils.safe_filename(name).replace(" ", "_") or "vpat_report"
+    if stem.lower().endswith(".json"):
+        stem = stem[:-5]
+    out = _drafts_dir() / f"{stem}.json"
+    try:
+        out.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001
+        log.exception("VPAT save-as failed")
+        return jsonify({"ok": False, "error": f"Save failed: {exc}"}), 400
+    return jsonify({"ok": True, "name": out.stem, "file": out.name})
+
+
+@vpat_editor_bp.route("/api/vpat-editor/recent")
+def recent():
+    """List server-side saved reports, newest first, with date/time."""
+    items = []
+    for p in _drafts_dir().glob("*.json"):
+        try:
+            ts = p.stat().st_mtime
+        except OSError:
+            continue
+        items.append({
+            "name": p.stem,
+            "file": p.name,
+            "modified": datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S"),
+            "ts": ts,
+        })
+    items.sort(key=lambda x: x["ts"], reverse=True)
+    return jsonify({"ok": True, "items": items[:50]})
+
+
+@vpat_editor_bp.route("/api/vpat-editor/load-draft/<path:name>")
+def load_draft(name):
+    """Return the data for a previously saved (server-side) report."""
+    stem = file_utils.safe_filename(name).replace(" ", "_")
+    if stem.lower().endswith(".json"):
+        stem = stem[:-5]
+    p = _drafts_dir() / f"{stem}.json"
+    if not p.exists():
+        return jsonify({"ok": False, "error": "That saved report no longer exists."}), 404
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"Could not read report: {exc}"}), 400
+    return jsonify({"ok": True, "data": data, "name": p.stem})

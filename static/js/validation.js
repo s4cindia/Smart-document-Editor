@@ -171,21 +171,25 @@
     await runDuplicates(null, "Duplicate rows");
   };
 
-  /* ----- Duplicate finder (choose columns) — VIEW group ----------------- */
+  /* ----- Duplicate finder — matches on the VISIBLE columns -------------- */
   SDE.actions["duplicate-finder"] = function () {
     if (!gate()) return;
+    const all = SDE.columns || [];
+    const vis = (SDE.grid.visibleColumns && SDE.grid.visibleColumns()) || [];
+    const usingAll = vis.length === 0 || vis.length >= all.length;
+    const shown = vis.length ? vis : all;
+    const chips = shown.map((c) => `<span class="dupcol-chip">${esc(c)}</span>`).join("");
     SDE.modal({
-      title: "Duplicate finder", icon: "fa-clone",
-      bodyHTML: `<div class="hint" style="margin-bottom:10px">Pick the column(s) that define a duplicate. Leave empty to match entire rows.</div>
-        <div class="field"><label>Key columns</label>
-          ${SDE.columnSelectHTML("dupCols", { multiple: true })}</div>`,
+      title: "Find duplicates", icon: "fa-clone",
+      bodyHTML: `<div class="hint" style="margin-bottom:10px">Duplicates are matched using only the columns currently <b>shown</b> in the grid. Use <b>View → Columns…</b> to show just the fields that define a duplicate, then run this.</div>
+        <div class="field"><label>Matching on ${shown.length} visible column${shown.length === 1 ? "" : "s"}${usingAll ? " (all columns)" : ""}</label>
+          <div class="dupcols">${chips}</div></div>`,
       buttons: [
         { label: "Cancel", onClick: SDE.closeModal },
-        { label: "Find", variant: "primary", onClick: () => {
-          const cols = SDE.getSelected("dupCols");
-          SDE.closeModal();
-          runDuplicates(cols.length ? cols : null, "Duplicate finder");
-        } },
+        { label: "Find duplicates", variant: "primary", onClick: () => {
+            SDE.closeModal();
+            runDuplicates(usingAll ? null : vis, "Duplicate finder");
+          } },
       ],
     });
   };
@@ -207,14 +211,21 @@
           metric("Duplicate groups", num(res.group_count), res.group_count ? "warn" : "good"),
           metric("Duplicate rows", num(res.duplicate_rows), res.duplicate_rows ? "bad" : "good"),
         ]) +
-          `<div class="hint" style="margin-bottom:10px">Key: ${cols.map(esc).join(", ") || "(all columns)"} · matching rows tinted amber in the grid.</div>` +
+          `<div class="hint" style="margin-bottom:10px">Matched on: ${cols.map(esc).join(", ") || "all columns (entire row)"} · each duplicate group is tinted a different colour and grouped together in the grid.</div>` +
           miniTable(["Group", "#", ...cols], rows) +
           (res.duplicate_rows
             ? `<button class="btn danger" style="margin-top:14px;width:100%" id="dropDupBtn">
                  <i class="fa-solid fa-broom"></i> Drop duplicates (keep first)</button>`
             : ""),
       });
-      SDE.grid.setDuplicateRows(res.duplicate_ids || []);
+      SDE.grid.setDuplicateRows(res.duplicate_ids || [], res.groups || []);
+      // Server reordered the rows so each group sits together — reload the grid
+      // so the grouped order is visible, then re-apply the group colours.
+      if (d.regrouped && SDE.grid.refresh) {
+        if (SDE.grid.clearSort) SDE.grid.clearSort();
+        SDE.grid.refresh();
+        setTimeout(() => SDE.grid.setDuplicateRows(res.duplicate_ids || [], res.groups || []), 150);
+      }
       const drop = document.getElementById("dropDupBtn");
       if (drop) drop.onclick = () => dropDuplicates(res.columns);
     } catch (e) { SDE.toast(e.message, "error"); }

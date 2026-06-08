@@ -124,6 +124,9 @@
       padding:8px 12px; border-radius:8px; margin-top:6px;}
     .template-note.found{color:#15803d; background:#f0fdf4; border:1px solid #bbf7d0;}
     .template-note.missing{color:#92400e; background:#fffbeb; border:1px solid #fde68a;}
+    .btn-ghost-sm{ font-size:12.5px; font-weight:600; padding:7px 14px; border-radius:9px;
+      border:1px solid #d6dae4; background:#fff; color:#334155; cursor:pointer; }
+    .btn-ghost-sm:hover{ background:#f1f5f9; }
 
     /* toast */
     #toasts{position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:10px; z-index:60;}
@@ -138,6 +141,7 @@
   </style>
 </head>
 <body>
+  {% include "partials/topbar.html" %}
   <div class="topbar">
     <a class="back" href="{{ url_for('main.dashboard') }}">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -204,9 +208,14 @@
         {% endif %}
       </div>
       {% if slug in ('generate-axe2-excel',) %}
-        <div class="template-note {{ 'found' if template_found else 'missing' }}">
-          {% if template_found %}✓ Audit template found — output will use it.{% else %}
-          ⚠ No template at data/templates/Template_WCAG_Audit.xlsx — a standalone audit workbook will be generated.{% endif %}
+        <div class="template-note {{ 'found' if template_found else 'missing' }}" id="tplNote">
+          <span id="tplNoteText">{% if template_found %}✓ Audit template found — output will use it.{% else %}
+          ⚠ No template installed — a standalone audit workbook will be generated.{% endif %}</span>
+        </div>
+        <div class="template-actions" style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="btn-ghost-sm" id="tplUploadBtn">Upload template…</button>
+          <button type="button" class="btn-ghost-sm" id="tplClearBtn" {% if not template_found %}hidden{% endif %}>Remove template</button>
+          <input type="file" id="tplFileInput" accept=".xlsx,.xlsm" hidden>
         </div>
       {% endif %}
     </section>
@@ -260,5 +269,43 @@
     }
   </script>
   <script src="{{ url_for('static', filename='js/operation.js') }}?v={{ asset_version }}"></script>
+  <script>
+  /* Template management for placeholder 2 (upload / remove the WCAG template) */
+  (function(){
+    var up=document.getElementById("tplUploadBtn"),
+        clr=document.getElementById("tplClearBtn"),
+        inp=document.getElementById("tplFileInput"),
+        note=document.getElementById("tplNote"),
+        txt=document.getElementById("tplNoteText");
+    if(!up||!inp) return;
+    function setFound(found, name){
+      note.classList.toggle("found", !!found); note.classList.toggle("missing", !found);
+      txt.textContent = found
+        ? ("\u2713 Audit template installed" + (name?(" ("+name+")"):"") + " — output will use it.")
+        : "\u26A0 No template installed — a standalone audit workbook will be generated.";
+      if(clr) clr.hidden = !found;
+    }
+    function toast(m,t){ if(window.Toastify){ Toastify({text:m,duration:3200,gravity:"top",position:"right",
+      style:{background:(t==="error"?"#dc2626":t==="success"?"#16a34a":"#334155")}}).showToast(); } else { alert(m); } }
+    up.onclick=function(){ inp.click(); };
+    inp.onchange=async function(e){
+      var f=e.target.files[0]; if(!f) return;
+      var fd=new FormData(); fd.append("file", f);
+      try{
+        var r=await fetch("/api/template/upload",{method:"POST",body:fd});
+        var j=await r.json(); if(!j.ok) throw new Error(j.error||"Upload failed");
+        setFound(true, j.uploaded); toast("Template set: "+j.uploaded,"success");
+      }catch(err){ toast(err.message,"error"); }
+      e.target.value="";
+    };
+    if(clr) clr.onclick=async function(){
+      try{
+        var r=await fetch("/api/template/clear",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+        var j=await r.json(); if(!j.ok) throw new Error(j.error||"Remove failed");
+        setFound(false); toast("Template removed — plain output","info");
+      }catch(err){ toast(err.message,"error"); }
+    };
+  })();
+  </script>
 </body>
 </html>

@@ -28,6 +28,7 @@
     searchMode: "contains",
     // highlight sets (row __id)
     dupIds: new Set(),
+    dupGroup: new Map(),
     errIds: new Set(),
   };
   SDE.grid = G;
@@ -135,7 +136,15 @@
       ensureDomOrder: true,
       tooltipShowDelay: 400,
       rowClassRules: {
-        "dup-row": (p) => p.data && G.dupIds.has(p.data.__id),
+        "dup-row": (p) => p.data && G.dupIds.has(p.data.__id) && !G.dupGroup.has(p.data.__id),
+        "dup-g0": (p) => p.data && G.dupGroup.get(p.data.__id) === 0,
+        "dup-g1": (p) => p.data && G.dupGroup.get(p.data.__id) === 1,
+        "dup-g2": (p) => p.data && G.dupGroup.get(p.data.__id) === 2,
+        "dup-g3": (p) => p.data && G.dupGroup.get(p.data.__id) === 3,
+        "dup-g4": (p) => p.data && G.dupGroup.get(p.data.__id) === 4,
+        "dup-g5": (p) => p.data && G.dupGroup.get(p.data.__id) === 5,
+        "dup-g6": (p) => p.data && G.dupGroup.get(p.data.__id) === 6,
+        "dup-g7": (p) => p.data && G.dupGroup.get(p.data.__id) === 7,
       },
       defaultColDef: {
         sortable: true,
@@ -144,11 +153,64 @@
         suppressHeaderMenuButton: true,
       },
       onCellValueChanged: onCellValueChanged,
+      onCellDoubleClicked: (ev) => {
+        if (!ev || !ev.data) return;
+        if (G.api) G.api.stopEditing(true);   // prefer the row box over inline edit
+        openRowEditor(ev.data, ev.colDef ? ev.colDef.field : null);
+      },
       onSelectionChanged: () => {
         if (G.api) SDE.setSelectedCount(G.api.getSelectedRows().length);
       },
     };
   }
+
+  /* ----- ROW EDITOR: edit all fields of one row in a single box ---------- */
+  function openRowEditor(data, focusField) {
+    if (!data) return;
+    const names = (SDE.columns || []).slice();
+    if (!names.length) return;
+    const body = names.map((c, i) => `
+      <div class="field">
+        <label>${SDE.esc(c)}</label>
+        <textarea id="rowf_${i}" rows="2">${SDE.esc(data[c] == null ? "" : String(data[c]))}</textarea>
+      </div>`).join("");
+    SDE.modal({
+      title: "Edit row #" + data.__id, icon: "fa-pen-to-square", wide: true,
+      bodyHTML: `<div class="hint" style="margin-bottom:12px">Edit any field and Save. All columns of this row are shown below.</div>
+        <div class="row-editor">${body}</div>`,
+      buttons: [
+        { label: "Cancel", onClick: SDE.closeModal },
+        { label: "Save row", variant: "primary", onClick: async () => {
+            const changes = [];
+            names.forEach((c, i) => {
+              const el = document.getElementById("rowf_" + i);
+              if (!el) return;
+              const nv = el.value;
+              const ov = data[c] == null ? "" : String(data[c]);
+              if (nv !== ov) changes.push({ field: c, value: nv });
+            });
+            if (!changes.length) { SDE.closeModal(); SDE.toast("No changes made", "info"); return; }
+            SDE.busy(true);
+            try {
+              for (const ch of changes) {
+                await SDE.post("/api/data/cell", { id: data.__id, field: ch.field, value: ch.value });
+              }
+              SDE.closeModal();
+              G.refresh();
+              if (SDE.refreshStatus) SDE.refreshStatus();
+              SDE.toast(`Saved ${changes.length} field(s) in row #${data.__id}`, "success");
+            } catch (e) {
+              SDE.toast("Save failed: " + e.message, "error");
+            } finally { SDE.busy(false); }
+          } },
+      ],
+    });
+    if (focusField) {
+      const idx = names.indexOf(focusField);
+      if (idx >= 0) { const el = document.getElementById("rowf_" + idx); if (el) el.focus(); }
+    }
+  }
+  SDE.openRowEditor = openRowEditor;
 
   async function onCellValueChanged(ev) {
     G._pending++;
@@ -240,6 +302,22 @@
     if (G.api) G.api.purgeInfiniteCache();
   };
 
+  G.clearSort = function () {
+    // Remove any active column sort so server-side row order (e.g. grouped
+    // duplicates) is what the grid displays.
+    if (G.api) G.api.applyColumnState({ defaultState: { sort: null } });
+  };
+
+  G.visibleColumns = function () {
+    // Data columns currently shown in the grid (excludes the checkbox + id),
+    // in display order. Used so "Find duplicates" matches on what the user
+    // chose to show via the Columns picker.
+    if (!G.api) return [];
+    return G.api.getColumnState()
+      .filter((c) => !c.hide && c.colId !== "__sel" && c.colId !== "__id")
+      .map((c) => c.colId);
+  };
+
   G.search = function (term) {
     G.searchTerm = (term && term.length) ? term : null;
     G.searchColumns = null;
@@ -259,8 +337,16 @@
     return G.api.getSelectedRows().map((r) => r.__id);
   };
 
-  G.setDuplicateRows = function (ids) {
+  G.setDuplicateRows = function (ids, groups) {
     G.dupIds = new Set(ids || []);
+    // Map each row id to a colour bucket (0-7) based on its duplicate group,
+    // so rows that match each other share a colour and groups differ.
+    G.dupGroup = new Map();
+    if (Array.isArray(groups)) {
+      groups.forEach((groupIds, gi) => {
+        (groupIds || []).forEach((id) => G.dupGroup.set(id, gi % 8));
+      });
+    }
     if (G.api) G.api.redrawRows();
   };
 
@@ -401,12 +487,15 @@
           <input type="checkbox" data-col="${SDE.esc(c.colId)}" ${c.hide ? "" : "checked"}>
           <span>${SDE.esc(c.colId)}</span>
         </label>`).join("");
+    const setAll = (on) => document.querySelectorAll("#modalBody input[data-col]")
+      .forEach((cb) => { cb.checked = on; });
     SDE.modal({
-      title, icon: "fa-table-columns",
+      title: `${title} · build v${window.SDE_BUILD || "?"}`, icon: "fa-table-columns", wide: true,
       bodyHTML: `<div class="hint" style="margin-bottom:10px">Tick the columns to keep visible. Drag column headers in the grid to reorder.</div>
-        <div class="chk-list">${rows}</div>`,
+        <div class="chk-list chk-grid">${rows}</div>`,
       buttons: [
-        { label: "Show all", onClick: () => { showAllColumns(); SDE.closeModal(); } },
+        { label: "Show all", onClick: () => setAll(true) },
+        { label: "Clear", onClick: () => setAll(false) },
         { label: "Apply", variant: "primary", onClick: () => {
             document.querySelectorAll("#modalBody input[data-col]").forEach((cb) => {
               G.api.setColumnVisible(cb.dataset.col, cb.checked);

@@ -176,7 +176,7 @@ def merge_axe(paths: list[str | Path]) -> tuple[list, dict, dict]:
     out = _outpath(f"merged_axe_{_ts()}")
     from services.excel_service import write_excel, highlight_summary_cells
     write_excel(merged, out, sheet_name="Merged")
-    highlight_summary_cells(out)
+    # highlighting removed per request: highlight_summary_cells(out)
 
     stats = {
         "files_processed": len([f for f in per_file if f.get("rows")]),
@@ -544,7 +544,7 @@ def axe_to_audit(path: str | Path, sheet: str | None = None,
         _format_standalone_sheet(out_ws, out_row - 1)
     out_wb.save(out)
     from services.excel_service import highlight_summary_cells
-    highlight_summary_cells(out)
+    # highlighting removed per request: highlight_summary_cells(out)
 
     warnings = []
     if not template_used:
@@ -579,8 +579,8 @@ def _format_standalone_sheet(ws, last_row: int) -> None:
     """Make the fallback workbook a clean, readable document."""
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
-    hdr_fill = PatternFill("solid", fgColor="2563EB")
-    hdr_font = Font(bold=True, color="FFFFFF", size=11)
+    hdr_fill = None  # no header highlighting
+    hdr_font = Font(bold=True, size=11)
     hdr_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
     body_align = Alignment(vertical="top", wrap_text=False)
     thin = Side(style="thin", color="E4E8F0")
@@ -591,7 +591,6 @@ def _format_standalone_sheet(ws, last_row: int) -> None:
     for col in _STANDALONE_HEADERS:
         cell = ws[f"{col}1"]
         cell.font = hdr_font
-        cell.fill = hdr_fill
         cell.alignment = hdr_align
         cell.border = border
     ws.row_dimensions[1].height = 26
@@ -656,7 +655,7 @@ def _fill_template(audit: pl.DataFrame, out: Path) -> None:
             ws.cell(row=i, column=j, value=val)
     wb.save(out)
     from services.excel_service import highlight_summary_cells
-    highlight_summary_cells(out)
+    # highlighting removed per request: highlight_summary_cells(out)
 # Feature 3 — Generate audit Excel for downloadable documents
 # --------------------------------------------------------------------------
 _DOC_TYPES = {".pdf": "PDF", ".doc": "Microsoft Word", ".docx": "Microsoft Word",
@@ -858,8 +857,7 @@ def _write_vpat_workbook(out: Path, summary_rows: list[dict],
     import xlsxwriter
     with xlsxwriter.Workbook(str(out)) as wb:
         title = wb.add_format({"bold": True, "font_size": 14, "font_color": "#1d4ed8"})
-        hdr = wb.add_format({"bold": True, "bg_color": "#2563eb",
-                             "font_color": "#ffffff", "border": 1})
+        hdr = wb.add_format({"bold": True, "border": 1})
         cell = wb.add_format({"border": 1, "valign": "top", "text_wrap": True})
         s = wb.add_worksheet("Summary")
         s.merge_range(0, 0, 0, 1, "Product Accessibility Report — Summary", title)

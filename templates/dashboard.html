@@ -56,10 +56,10 @@
     .topbar .ghost:hover{color:var(--accent); border-color:var(--accent);}
 
     /* ---------- layout ---------- */
-    .wrap{width:100%; max-width:1120px; margin:0 auto; padding:48px 28px 40px; flex:1;}
+    .wrap{width:100%; max-width:1120px; margin:0 auto; padding:20px 28px 40px; flex:1;}
 
     /* ---------- header ---------- */
-    .page-header{margin-bottom:36px;}
+    .page-header{margin-bottom:16px;}
     .eyebrow{
       display:inline-flex; align-items:center; gap:7px;
       font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
@@ -151,7 +151,9 @@
   </style>
 </head>
 <body>
-  <!-- top bar -->
+  {% include "partials/topbar.html" %}
+
+<!-- dashboard top bar -->
   <div class="topbar">
     <div class="logo" aria-hidden="true">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -161,51 +163,32 @@
         <path d="M14.5 18.5 18 15l3 3-3.5 3.5H14.5z"/>
       </svg>
     </div>
-    <div class="brand">Smart Document Editor</div>
-    <div class="spacer"></div>
+
     {% if current_user %}
     <span style="font-size:13px;color:var(--text-soft);margin-right:4px">
-      Hi, <b style="color:var(--text)">{{ current_user }}</b></span>
+      Hi, <b style="color:var(--text)">{{ current_user }}</b>
+    </span>
     {% endif %}
+
     {% if current_role == 'admin' %}
-    <a class="ghost" href="{{ url_for('admin.users') }}" style="margin-right:8px">
+    <a class="ghost" href="{{ url_for('admin.users') }}">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
         <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
       </svg>
       Manage users
     </a>
     {% endif %}
-    <a class="ghost" href="{{ url_for('auth.logout') }}">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-        <path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>
-      </svg>
-      Log out
-    </a>
-  </div>
 
+    <div class="spacer"></div>
+  </div>
   <main class="wrap">
-    <!-- page header -->
-    <header class="page-header">
-      <span class="eyebrow">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-          <circle cx="5" cy="5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="5" r="2"/>
-          <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
-        </svg>
-        Dashboard
-      </span>
-      <h1>Smart Document Editor</h1>
-      <p>Your workspace for editing, validating and exporting spreadsheet and PDF
-         data. Review the sections below, then jump into the editor when you're ready.</p>
-    </header>
 
     <!-- 2x2 card grid -->
     <section class="card-grid" aria-label="Accessibility tools">
-
       <!-- Card 1 — Validate / Merge Axe Tool Excels -->
       <article class="card" data-href="/merge-axe-excels" role="link" tabindex="0"
                aria-label="Validate / Merge Axe Tool Excels">

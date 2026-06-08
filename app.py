@@ -25,6 +25,52 @@ logging.basicConfig(
 )
 log = logging.getLogger("smart_doc_editor")
 
+# Single source of truth for the build/asset version. Bump this to force
+# browsers to reload updated css/js and to confirm a fresh build is running.
+ASSET_VERSION = "52"
+
+# ---------------------------------------------------------------------------
+# Temporarily disabled features.
+#
+# Placeholders 2, 3, 4 and 5 are switched off: the code stays in place and the
+# dashboard cards remain visible, but the pages show a "temporarily
+# unavailable" notice and the feature endpoints return an error so nothing
+# actually runs. To RE-ENABLE a feature later, just remove its key from
+# DISABLED_FEATURES (or set it to an empty set to enable everything).
+# ---------------------------------------------------------------------------
+DISABLED_FEATURES = {"axe2excel", "delivery", "downloadable", "vpat_editor"}
+
+# Page URLs (show the disabled notice) per feature.
+_FEATURE_PAGE_PREFIXES = {
+    "axe2excel":    ["/generate-axe2-excel"],
+    "delivery":     ["/vpat-generate-report"],
+    "downloadable": ["/generate-downloadable-excel"],
+    "vpat_editor":  ["/vpat-editor"],
+}
+# Feature-specific API URLs (return a disabled error). These are NOT shared
+# with placeholder 1 (merge) or the main editor, so blocking them is safe.
+_FEATURE_API_PREFIXES = {
+    "axe2excel":    ["/api/feature/axe2excel"],
+    "delivery":     ["/api/feature/vpat", "/api/feature/delivery-errors",
+                     "/api/feature/export-template"],
+    "downloadable": ["/api/feature/downloadable"],
+    "vpat_editor":  ["/api/vpat-editor"],
+}
+
+
+def _disabled_page_prefixes() -> list[str]:
+    out = []
+    for feat in DISABLED_FEATURES:
+        out.extend(_FEATURE_PAGE_PREFIXES.get(feat, []))
+    return out
+
+
+def _disabled_api_prefixes() -> list[str]:
+    out = []
+    for feat in DISABLED_FEATURES:
+        out.extend(_FEATURE_API_PREFIXES.get(feat, []))
+    return out
+
 
 def create_app() -> Flask:
     app = Flask(__name__)
@@ -71,6 +117,20 @@ def create_app() -> Flask:
             return jsonify({"ok": False, "error": "Not authenticated"}), 401
         return redirect(url_for("auth.login"))
 
+    @app.before_request
+    def _gate_disabled_features():
+        """Block temporarily-disabled features (placeholders 2-5) while leaving
+        their code and dashboard cards in place."""
+        path = request.path
+        for pre in _disabled_api_prefixes():
+            if path == pre or path.startswith(pre + "/"):
+                return jsonify({"ok": False,
+                                "error": "This feature is temporarily disabled."}), 403
+        for pre in _disabled_page_prefixes():
+            if path == pre or path.startswith(pre + "/"):
+                return render_template("feature_disabled.html"), 200
+        return None
+
     @app.context_processor
     def _inject_user():
         return {"current_user": session.get("user"),
@@ -78,8 +138,8 @@ def create_app() -> Flask:
 
     @app.context_processor
     def _inject_asset_version():
-        # bump to force browsers to reload updated css/js
-        return {"asset_version": "40"}
+        # bump ASSET_VERSION (module constant) to force browsers to reload css/js
+        return {"asset_version": ASSET_VERSION}
 
     @app.errorhandler(403)
     def forbidden(_e):  # noqa: ANN001
@@ -108,6 +168,12 @@ app = create_app()
 if __name__ == "__main__":
     print("=" * 60)
     print(" Smart Document Editor & Validator")
+    print(f" BUILD v{ASSET_VERSION}")
     print(" Open your browser at:  http://127.0.0.1:5000")
+    print(" Auto-reload is ON — replacing files restarts the app.")
     print("=" * 60)
-    app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)
+    # use_reloader=True so that replacing the app's files (e.g. extracting a new
+    # build over this folder) automatically restarts the server and serves the
+    # new code/assets. Custom error pages are kept (debugger stays off).
+    app.run(host="127.0.0.1", port=5000, debug=False, threaded=True,
+            use_reloader=True, use_debugger=False)

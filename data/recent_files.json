@@ -1,92 +1,92 @@
 [
   {
-    "path": "C:\\Users\\MirudhuvarshiniS\\Downloads\\smart-document-editor\\smart-document-editor\\uploads\\Caroline_WAA_189396_Nancy Caroline_s Emergency Care in the Streets_ Ninth Edition_QA.xlsx",
+    "path": "C:\\Users\\MirudhuvarshiniS\\Downloads\\Document-Editor-updated\\uploads\\Caroline_WAA_189396_Nancy Caroline_s Emergency Care in the Streets_ Ninth Edition_QA_1.xlsx",
+    "name": "Caroline_WAA_189396_Nancy Caroline_s Emergency Care in the Streets_ Ninth Edition_QA_1.xlsx",
+    "sheet": "Sheet1",
+    "ts": 1780893629.402167
+  },
+  {
+    "path": "C:\\Users\\MirudhuvarshiniS\\Downloads\\Document-Editor-updated\\uploads\\Caroline_WAA_189396_Nancy Caroline_s Emergency Care in the Streets_ Ninth Edition_QA.xlsx",
     "name": "Caroline_WAA_189396_Nancy Caroline_s Emergency Care in the Streets_ Ninth Edition_QA.xlsx",
     "sheet": "Sheet1",
-    "ts": 1780632759.438449
+    "ts": 1780892861.2607276
   },
   {
-    "path": "/home/claude/smart-document-editor/uploads/a.xlsx",
-    "name": "a.xlsx",
-    "sheet": "Sheet",
-    "ts": 1780557926.8299453
-  },
-  {
-    "path": "/home/claude/smart-document-editor/uploads/a_1.xlsx",
-    "name": "a_1.xlsx",
-    "sheet": "Sheet",
-    "ts": 1780556742.7859876
-  },
-  {
-    "path": "/home/claude/smart-document-editor/exports/merged_axe_20260604_043256_20260604_043256.xlsx",
-    "name": "merged_axe_20260604_043256_20260604_043256.xlsx",
+    "path": "/home/claude/doc-editor-gh/exports/merged_axe_20260608_040726_20260608_040726.xlsx",
+    "name": "merged_axe_20260608_040726_20260608_040726.xlsx",
     "sheet": null,
-    "ts": 1780547577.204595
+    "ts": 1780891646.0917428
   },
   {
-    "path": "/home/claude/smart-document-editor/uploads/audit.xlsx",
-    "name": "audit.xlsx",
-    "sheet": "Sheet",
-    "ts": 1780544917.4929707
-  },
-  {
-    "path": "/home/claude/smart-document-editor/exports/merged_axe_20260603_100349_20260603_100349.xlsx",
-    "name": "merged_axe_20260603_100349_20260603_100349.xlsx",
+    "path": "/home/claude/doc-editor-gh/uploads/d_4.csv",
+    "name": "d_4.csv",
     "sheet": null,
-    "ts": 1780481029.6429033
+    "ts": 1780739056.0262275
   },
   {
-    "path": "/home/claude/smart-document-editor/uploads/d.csv",
+    "path": "/home/claude/doc-editor-gh/uploads/d_3.csv",
+    "name": "d_3.csv",
+    "sheet": null,
+    "ts": 1780729504.127048
+  },
+  {
+    "path": "/home/claude/doc-editor-gh/uploads/dup_2.csv",
+    "name": "dup_2.csv",
+    "sheet": null,
+    "ts": 1780729126.636271
+  },
+  {
+    "path": "/home/claude/doc-editor-gh/uploads/d_2.csv",
+    "name": "d_2.csv",
+    "sheet": null,
+    "ts": 1780729126.5555327
+  },
+  {
+    "path": "/home/claude/doc-editor-gh/uploads/dup_1.csv",
+    "name": "dup_1.csv",
+    "sheet": null,
+    "ts": 1780728120.4212444
+  },
+  {
+    "path": "/home/claude/doc-editor-gh/uploads/dup.csv",
+    "name": "dup.csv",
+    "sheet": null,
+    "ts": 1780728107.0945783
+  },
+  {
+    "path": "/home/claude/doc-editor-gh/uploads/d_1.csv",
+    "name": "d_1.csv",
+    "sheet": null,
+    "ts": 1780728107.0289073
+  },
+  {
+    "path": "/home/claude/doc-editor-gh/uploads/d.csv",
     "name": "d.csv",
     "sheet": null,
-    "ts": 1780459747.6711736
+    "ts": 1780722383.418244
   },
   {
-    "path": "/home/claude/smart-document-editor/uploads/data.csv",
-    "name": "data.csv",
+    "path": "/home/claude/doc-editor-gh/exports/merged_axe_20260606_043403_20260606_043403.xlsx",
+    "name": "merged_axe_20260606_043403_20260606_043403.xlsx",
     "sheet": null,
-    "ts": 1780403591.8648767
+    "ts": 1780720443.9002647
   },
   {
-    "path": "/home/claude/smart-document-editor/uploads/data_1.csv",
-    "name": "data_1.csv",
+    "path": "/home/claude/doc-editor-gh/uploads/broken.csv",
+    "name": "broken.csv",
     "sheet": null,
-    "ts": 1780403208.3117652
+    "ts": 1780719935.9115167
   },
   {
-    "path": "/home/claude/smart-document-editor/uploads/narrow.csv",
-    "name": "narrow.csv",
+    "path": "/home/claude/doc-editor-gh/uploads/a_1.csv",
+    "name": "a_1.csv",
     "sheet": null,
-    "ts": 1780402581.4441504
+    "ts": 1780718667.7433348
   },
   {
-    "path": "/home/claude/smart-document-editor/uploads/wide_1.csv",
-    "name": "wide_1.csv",
+    "path": "/home/claude/doc-editor-gh/uploads/a.csv",
+    "name": "a.csv",
     "sheet": null,
-    "ts": 1780402581.3368006
-  },
-  {
-    "path": "/home/claude/smart-document-editor/uploads/w40_1.csv",
-    "name": "w40_1.csv",
-    "sheet": null,
-    "ts": 1780402570.0853875
-  },
-  {
-    "path": "/home/claude/smart-document-editor/uploads/w25_2.csv",
-    "name": "w25_2.csv",
-    "sheet": null,
-    "ts": 1780402570.071492
-  },
-  {
-    "path": "/home/claude/smart-document-editor/uploads/w15_2.csv",
-    "name": "w15_2.csv",
-    "sheet": null,
-    "ts": 1780402570.0576184
-  },
-  {
-    "path": "/home/claude/smart-document-editor/uploads/w40.csv",
-    "name": "w40.csv",
-    "sheet": null,
-    "ts": 1780402505.0906205
+    "ts": 1780718637.3725994
   }
 ]

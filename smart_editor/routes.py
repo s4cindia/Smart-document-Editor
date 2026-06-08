@@ -55,21 +55,27 @@ def open_file():
     f.save(dest)
     ext = dest.suffix.lower()
 
-    if ext in (".xlsx", ".xls"):
-        sheets = excel_service.list_sheets(dest)
-        if len(sheets) > 1:
-            return ok(needs_sheet=True, path=str(dest), sheets=sheets,
-                      name=dest.name)
-        load_tabular(dest, sheets[0] if sheets else None)
+    try:
+        if ext in (".xlsx", ".xls"):
+            sheets = excel_service.list_sheets(dest)
+            if len(sheets) > 1:
+                return ok(needs_sheet=True, path=str(dest), sheets=sheets,
+                          name=dest.name)
+            load_tabular(dest, sheets[0] if sheets else None)
+            return ok(loaded=True, status=status_payload())
+
+        if ext == ".pdf":
+            load_pdf(dest)
+            return ok(loaded=True, pdf=True, status=status_payload(),
+                      pdf_info=pdf_info_payload())
+
+        load_tabular(dest)
         return ok(loaded=True, status=status_payload())
-
-    if ext == ".pdf":
-        load_pdf(dest)
-        return ok(loaded=True, pdf=True, status=status_payload(),
-                  pdf_info=pdf_info_payload())
-
-    load_tabular(dest)
-    return ok(loaded=True, status=status_payload())
+    except Exception as exc:  # noqa: BLE001
+        log.exception("open failed: %s", dest.name)
+        return fail(f"“{dest.name}” could not be opened. The file may be "
+                    f"corrupt, empty, or not a valid {ext.lstrip('.') or 'data'} "
+                    f"file. Details: {exc}")
 
 
 @files_bp.route("/open-path", methods=["POST"])
@@ -233,7 +239,12 @@ def duplicates():
         return fail("No dataset loaded.")
     body = request.get_json(force=True, silent=True) or {}
     result = validators.find_duplicates(store.df, body.get("columns"))
-    return ok(result=result)
+    # Group matching rows together: bring duplicate rows to the top, ordered by
+    # group, so members of the same group are adjacent in the grid.
+    dup_ids = result.get("duplicate_ids") or []
+    if dup_ids:
+        store.reorder_by_ids(dup_ids)
+    return ok(result=result, regrouped=bool(dup_ids))
 
 
 @check_bp.route("/duplicates/drop", methods=["POST"])
@@ -314,8 +325,16 @@ def export(fmt: str):
     stem = Path(store.meta.name).stem or "export"
     try:
         if fmt == "excel":
-            highlight = bool((request.get_json(silent=True) or {}).get("highlight", True))
-            path = editor_services.export(store.df, "excel", stem, highlight=highlight)
+            body = request.get_json(silent=True) or {}
+            # Two independent, optional highlights:
+            #   • blank/empty cells in blue  (written by the xlsx writer)
+            #   • long / multi-line Summary cells in yellow (post-processed)
+            hl_blanks = bool(body.get("highlight_blanks"))
+            hl_summary = bool(body.get("highlight_summary") or body.get("highlight"))
+            path = editor_services.export(store.df, "excel", stem, highlight=hl_blanks)
+            if hl_summary:
+                from services.excel_service import highlight_summary_cells
+                highlight_summary_cells(path)
         elif fmt in ("csv", "json", "pdf"):
             path = editor_services.export(store.df, fmt, stem)
         else:

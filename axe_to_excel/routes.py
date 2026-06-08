@@ -12,10 +12,55 @@ from flask import Blueprint, request
 from app_helpers import (fail, feature_response, ok, render_operation,
                          save_uploads)
 from axe_to_excel import services
+from services import feature_service
 
 log = logging.getLogger("sde.axe_to_excel")
 
 axe_to_excel_bp = Blueprint("axe_to_excel", __name__)
+
+
+# --------------------------------------------------------------------------
+# Shared template management (used by placeholder 2 + placeholder 3)
+# Lets users supply / replace / remove the optional WCAG audit template from
+# the UI instead of hand-placing a file in data/templates/.
+# --------------------------------------------------------------------------
+@axe_to_excel_bp.route("/api/template/status")
+def template_status():
+    st = feature_service.template_status()
+    return ok(found=st["found"], name=feature_service.WCAG_TEMPLATE.name)
+
+
+@axe_to_excel_bp.route("/api/template/upload", methods=["POST"])
+def template_upload():
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return fail("No template file selected.")
+    if not f.filename.lower().endswith((".xlsx", ".xlsm")):
+        return fail("The template must be an Excel .xlsx (or .xlsm) file.")
+    try:
+        feature_service.TEMPLATE_DIR.mkdir(parents=True, exist_ok=True)
+        f.save(str(feature_service.WCAG_TEMPLATE))
+        from openpyxl import load_workbook
+        load_workbook(feature_service.WCAG_TEMPLATE).close()  # validate it opens
+    except Exception as exc:  # noqa: BLE001
+        try:
+            feature_service.WCAG_TEMPLATE.unlink()
+        except OSError:
+            pass
+        log.exception("template upload failed")
+        return fail(f"Could not use that template: {exc}")
+    return ok(found=True, name=feature_service.WCAG_TEMPLATE.name,
+              uploaded=f.filename)
+
+
+@axe_to_excel_bp.route("/api/template/clear", methods=["POST"])
+def template_clear():
+    try:
+        if feature_service.WCAG_TEMPLATE.exists():
+            feature_service.WCAG_TEMPLATE.unlink()
+    except OSError as exc:
+        return fail(f"Could not remove template: {exc}")
+    return ok(found=False, name=feature_service.WCAG_TEMPLATE.name)
 
 
 @axe_to_excel_bp.route("/generate-axe2-excel")

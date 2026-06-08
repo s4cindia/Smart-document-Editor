@@ -191,6 +191,30 @@ class DataStore:
             self._df = pl.concat([df, dup], how="vertical_relaxed")
             return dup.height
 
+    def reorder_by_ids(self, id_order: list[int]) -> None:
+        """Bring the given row ids to the top in the given order (so duplicate
+        group members sit together), keeping all other rows after them in their
+        current order. Snapshotted so it can be undone."""
+        with self._lock:
+            if self._df is None or not id_order:
+                return
+            seen: set[int] = set()
+            uniq: list[int] = []
+            for rid in id_order:
+                r = int(rid)
+                if r not in seen:
+                    seen.add(r)
+                    uniq.append(r)
+            rank = pl.DataFrame(
+                {ID_COL: uniq, "__r": list(range(len(uniq)))}
+            ).with_columns(pl.col(ID_COL).cast(self._df.schema[ID_COL]))
+            df = (self._df.with_row_index("__orig")
+                  .join(rank, on=ID_COL, how="left")
+                  .sort(["__r", "__orig"], nulls_last=True)
+                  .drop(["__orig", "__r"]))
+            self._snapshot("Group duplicates together")
+            self._df = df
+
 
 def _apply_search(
     df: pl.DataFrame, term: str, columns: list[str] | None, mode: str

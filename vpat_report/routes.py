@@ -22,8 +22,10 @@ vpat_report_bp = Blueprint("vpat_report", __name__)
 @vpat_report_bp.route("/vpat-generate-report")
 def page():
     # Opens the delivery-outputs editor (matches the reference toolbar).
+    from services import feature_service
     return render_template("index.html", mode="delivery",
-                           page_title="Validate / Generate Delivery Outputs")
+                           page_title="Validate / Generate Delivery Outputs",
+                           template_found=feature_service.template_status()["found"])
 
 
 @vpat_report_bp.route("/api/feature/vpat", methods=["POST"])

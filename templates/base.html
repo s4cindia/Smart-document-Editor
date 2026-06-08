@@ -35,6 +35,7 @@
   </script>
 </head>
 <body>
+  {% if not hide_global_nav %}{% include "partials/topbar.html" %}{% endif %}
   {% block body %}{% endblock %}
 
   <!-- Libraries -->
@@ -44,6 +45,7 @@
   <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.js') }}"></script>
 
   <!-- App scripts -->
+  <script>window.SDE_BUILD = "{{ asset_version }}";</script>
   <script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_version }}"></script>
   <script src="{{ url_for('static', filename='js/grid.js') }}?v={{ asset_version }}"></script>
   <script src="{{ url_for('static', filename='js/validation.js') }}?v={{ asset_version }}"></script>

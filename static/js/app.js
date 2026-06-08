@@ -157,8 +157,29 @@ SDE.handleUpload = async function (file) {
   try {
     const d = await SDE.api("/api/files/open", { method: "POST", body: fd });
     SDE.afterOpen(d);
-  } catch (e) { SDE.toast(e.message, "error"); }
+  } catch (e) {
+    SDE.fileOpenError(file && file.name, e.message);
+  }
   finally { SDE.busy(false); }
+};
+
+// Pop-up shown when a file (e.g. a malformed CSV) cannot be opened.
+SDE.fileOpenError = function (name, message) {
+  const detail = message || "The file could not be read.";
+  if (typeof Swal !== "undefined") {
+    Swal.fire({
+      icon: "error",
+      title: "Couldn't open this file",
+      html: `<div style="text-align:left">`
+        + (name ? `<p style="margin:0 0 8px"><b>${SDE.esc(name)}</b></p>` : "")
+        + `<p style="margin:0;color:#475569">${SDE.esc(detail)}</p>`
+        + `<p style="margin:10px 0 0;color:#64748b;font-size:13px">`
+        + `Check that it's a valid, non-empty CSV/Excel file and try again.</p></div>`,
+      confirmButtonText: "OK", confirmButtonColor: "#4f46e5",
+    });
+  } else {
+    SDE.toast(detail, "error");
+  }
 };
 
 SDE.afterOpen = function (d) {
@@ -233,7 +254,7 @@ SDE.fileListModal = function (title, items) {
     el.onclick = async () => {
       SDE.closeModal(); SDE.busy(true);
       try { SDE.afterOpen(await SDE.post("/api/files/open-path", { path: el.dataset.path })); }
-      catch (e) { SDE.toast(e.message, "error"); }
+      catch (e) { SDE.fileOpenError(el.dataset.name || el.dataset.path, e.message); }
       finally { SDE.busy(false); }
     };
   });
@@ -465,12 +486,16 @@ SDE.actions["save"] = async function () {
   };
 });
 
-// Excel offers two variants: highlighted missing values, or plain.
-async function doExcelExport(highlight) {
+// Excel offers optional highlights: yellow Summary cells and/or blue blanks.
+async function doExcelExport(opts) {
+  opts = opts || {};
   SDE.busy(true);
   try {
     await SDE.commitEdits();
-    const d = await SDE.post("/api/export/excel", { highlight });
+    const d = await SDE.post("/api/export/excel", {
+      highlight_summary: !!opts.summary,
+      highlight_blanks: !!opts.blanks,
+    });
     SDE.toast(`Exported ${d.file}`, "success");
     SDE.downloadLinkToast(d.url, d.file, { rows: d.rows, cols: d.cols });
   } catch (e) { SDE.toast(e.message, "error"); }
@@ -494,11 +519,15 @@ SDE.handleMerge = async function (fileList) {
       + `${s.duplicates_removed} duplicate(s) removed · ${s.final_rows} rows`, "success");
     if (d.merge_url) SDE.downloadLinkToast(d.merge_url, d.merged_file,
       { rows: s.final_rows, cols: s.columns });
-  } catch (e) { SDE.toast(e.message, "error"); }
+  } catch (e) {
+    if (typeof Swal !== "undefined") {
+      Swal.fire({ icon: "error", title: "Couldn't merge the files",
+        html: `<div style="text-align:left;color:#475569">${SDE.esc(e.message)}</div>`,
+        confirmButtonText: "OK", confirmButtonColor: "#4f46e5" });
+    } else { SDE.toast(e.message, "error"); }
+  }
   finally { SDE.busy(false); }
 };
-
-// ---- delivery mode: summarise loaded data by WCAG Ver / Priority ----
 SDE.actions["delivery-errors"] = async function () {
   if (!SDE.requireData()) return;
   SDE.busy(true);
@@ -525,7 +554,56 @@ SDE.actions["delivery-errors"] = async function () {
   finally { SDE.busy(false); }
 };
 
-// ---- delivery mode: export using the delivery template ----
+// ---- delivery mode: manage the template (upload / remove) ----
+SDE.updateTplNote = function (found) {
+  const note = document.getElementById("tplNote");
+  if (!note) return;
+  note.classList.toggle("found", !!found);
+  note.classList.toggle("missing", !found);
+  const txt = note.querySelector(".tpl-note-text");
+  if (txt) txt.textContent = found ? "Template ready" : "No template — plain output";
+  const icon = note.querySelector("i");
+  if (icon) icon.className = "fa-solid " + (found ? "fa-circle-check" : "fa-triangle-exclamation");
+};
+SDE.actions["template-manage"] = async function () {
+  let status = { found: false };
+  try { status = await SDE.get("/api/template/status"); } catch (e) { /* ignore */ }
+  const statusLine = status.found
+    ? `<div class="tpl-note found" style="margin-bottom:12px"><i class="fa-solid fa-circle-check"></i> A template is installed — delivery exports will use it.</div>`
+    : `<div class="tpl-note missing" style="margin-bottom:12px"><i class="fa-solid fa-triangle-exclamation"></i> No template installed — delivery exports are plain workbooks.</div>`;
+  SDE.modal({
+    title: "Delivery template", icon: "fa-file-invoice",
+    bodyHTML: `${statusLine}
+      <div class="hint">Upload your standardized audit workbook (.xlsx). Exports from this page will be written into a copy of it. Remove it to go back to plain output.</div>`,
+    buttons: [
+      { label: "Close", onClick: SDE.closeModal },
+      ...(status.found ? [{ label: "Remove template", onClick: async () => {
+          try { const d = await SDE.post("/api/template/clear", {}); SDE.updateTplNote(d.found);
+            SDE.toast("Template removed — exports will be plain", "info"); SDE.closeModal(); }
+          catch (e) { SDE.toast(e.message, "error"); }
+        } }] : []),
+      { label: "Upload template…", variant: "primary", onClick: () => {
+          SDE.closeModal(); document.getElementById("tplFileInput").click();
+        } },
+    ],
+  });
+};
+SDE.handleTemplateUpload = async function (file) {
+  if (!file) return;
+  const fd = new FormData(); fd.append("file", file);
+  SDE.busy(true);
+  try {
+    const d = await SDE.api("/api/template/upload", { method: "POST", body: fd });
+    SDE.updateTplNote(d.found);
+    SDE.toast(`Template set: ${d.uploaded} — delivery exports will use it`, "success");
+  } catch (e) {
+    if (typeof Swal !== "undefined") {
+      Swal.fire({ icon: "error", title: "Couldn't use that template",
+        html: `<div style="text-align:left;color:#475569">${SDE.esc(e.message)}</div>`,
+        confirmButtonColor: "#4f46e5" });
+    } else { SDE.toast(e.message, "error"); }
+  } finally { SDE.busy(false); }
+};
 SDE.actions["export-template"] = async function () {
   if (!SDE.requireData()) return;
   SDE.busy(true);
@@ -544,19 +622,21 @@ SDE.actions["export-excel"] = function () {
   if (!SDE.requireData()) return;
   SDE.modal({
     title: "Export to Excel", icon: "fa-file-excel",
-    bodyHTML: `<div class="hint" style="margin-bottom:14px">
-        Choose how missing values should appear in the workbook. All rows and
-        columns are included; the file keeps its normal layout.</div>
-      <div class="export-choice">
-        <button class="btn primary" id="xlHi" style="width:100%;margin-bottom:10px">
-          <i class="fa-solid fa-fill-drip"></i>&nbsp; Highlight missing values (blue)</button>
-        <button class="btn" id="xlPlain" style="width:100%">
-          <i class="fa-solid fa-table"></i>&nbsp; Plain — no highlighting</button>
-      </div>`,
-    buttons: [{ label: "Cancel", onClick: SDE.closeModal }],
+    bodyHTML: `<div class="hint" style="margin-bottom:12px">Choose how cells should be highlighted in the downloaded workbook (leave both off for a plain file):</div>
+      <label class="chk-row" style="font-size:13.5px;margin-bottom:6px"><input type="checkbox" id="xlHlSummary">
+        <span>Highlight <b>Summary</b> cells over 215 characters or with line breaks in <span style="background:#FFF59D;padding:0 6px;border-radius:3px">yellow</span></span></label>
+      <label class="chk-row" style="font-size:13.5px"><input type="checkbox" id="xlHlBlanks">
+        <span>Highlight <b>blank / empty</b> cells in <span style="background:#cdddff;padding:0 6px;border-radius:3px">blue</span></span></label>`,
+    buttons: [
+      { label: "Cancel", onClick: SDE.closeModal },
+      { label: "Export", variant: "primary", onClick: () => {
+          const summary = document.getElementById("xlHlSummary").checked;
+          const blanks = document.getElementById("xlHlBlanks").checked;
+          SDE.closeModal();
+          doExcelExport({ summary, blanks });
+        } },
+    ],
   });
-  document.getElementById("xlHi").onclick = () => { SDE.closeModal(); doExcelExport(true); };
-  document.getElementById("xlPlain").onclick = () => { SDE.closeModal(); doExcelExport(false); };
 };
 
 SDE.downloadLinkToast = function (url, name, meta) {
@@ -731,6 +811,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const mi = document.getElementById("mergeInput");
   if (mi) mi.addEventListener("change", (e) => {
     if (e.target.files && e.target.files.length) SDE.handleMerge(e.target.files);
+    e.target.value = "";
+  });
+
+  // delivery template upload input (delivery mode)
+  const tpl = document.getElementById("tplFileInput");
+  if (tpl) tpl.addEventListener("change", (e) => {
+    if (e.target.files[0]) SDE.handleTemplateUpload(e.target.files[0]);
     e.target.value = "";
   });
 

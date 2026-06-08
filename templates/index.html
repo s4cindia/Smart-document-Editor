@@ -7,7 +7,7 @@
   <div class="brand">
     <div class="logo"><i class="fa-solid fa-table-cells-large"></i></div>
     <div>
-      <div class="name">{{ page_title or 'Smart Document Editor' }}</div>
+      <div class="name">{{ page_title or '' }}</div>
       <div class="sub">{% if mode == 'delivery' %}Delivery outputs{% elif mode == 'merge' %}Merge &amp; edit{% else %}Editor &amp; Validator{% endif %}</div>
     </div>
   </div>
@@ -26,19 +26,9 @@
     <span class="dot"></span><span id="statusDotText">Idle</span>
   </div>
 
-  <a class="icon-btn" href="{{ url_for('main.dashboard') }}" title="Back to dashboard"
-     style="text-decoration:none"><i class="fa-solid fa-arrow-left-long"></i></a>
-
   <button class="icon-btn" id="themeToggle" title="Toggle theme">
     <i class="fa-solid fa-moon"></i>
   </button>
-
-  {% if current_user %}
-  <a class="icon-btn" href="{{ url_for('auth.logout') }}"
-     title="Log out ({{ current_user }})" style="text-decoration:none">
-    <i class="fa-solid fa-right-from-bracket"></i>
-  </a>
-  {% endif %}
 </header>
 
 <!-- ===================== TOOLBAR ===================== -->
@@ -85,8 +75,8 @@
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="errors"><i class="fa-solid fa-triangle-exclamation"></i>Show errors</button></li>
       {% endif %}
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="missing"><i class="fa-solid fa-circle-question"></i>Check missing values</button></li>
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="duplicate-rows-check"><i class="fa-solid fa-copy"></i>Check duplicate rows</button></li>
-      <li role="none"><button class="ribbon-item" role="menuitem" data-action="duplicate-finder"><i class="fa-solid fa-clone"></i>Find duplicates</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="duplicate-rows-check"><i class="fa-solid fa-copy"></i>Check duplicate rows (all columns)</button></li>
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="duplicate-finder"><i class="fa-solid fa-clone"></i>Find duplicates (visible columns)</button></li>
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="quality"><i class="fa-solid fa-gauge-high"></i>Data quality</button></li>
     </ul>
   </div>
@@ -138,10 +128,22 @@
     <ul class="ribbon-dropdown ribbon-dropdown-right" role="menu">
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="export-excel"><i class="fa-solid fa-file-excel"></i>Export Excel (.xlsx)</button></li>
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="export-csv"><i class="fa-solid fa-file-csv"></i>Export CSV (.csv)</button></li>
+      {% if mode == 'delivery' %}
+      <li role="none"><button class="ribbon-item" role="menuitem" data-action="export-template"><i class="fa-solid fa-file-invoice"></i>Export using delivery template</button></li>
+      {% endif %}
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="reports"><i class="fa-solid fa-file-lines"></i>Export report</button></li>
     </ul>
   </div>
   <span class="ribbon-spacer"></span>
+  {% if mode == 'delivery' %}
+  <button class="ribbon-top" data-action="template-manage" title="Upload or remove the delivery template"><i class="fa-solid fa-file-invoice"></i> Template</button>
+  <span class="tpl-note {{ 'found' if template_found else 'missing' }}" id="tplNote"
+        title="Click Template to upload or remove the delivery template">
+    <i class="fa-solid {{ 'fa-circle-check' if template_found else 'fa-triangle-exclamation' }}"></i>
+    <span class="tpl-note-text">{% if template_found %}Template ready{% else %}No template — plain output{% endif %}</span>
+  </span>
+  <input type="file" id="tplFileInput" accept=".xlsx,.xlsm" hidden>
+  {% endif %}
   <span class="save-state" id="saveState" data-dirty="false"><i class="fa-solid fa-circle-check"></i> Saved</span>
   <button class="ribbon-save" data-action="save" id="saveBtn" title="Save changes (Ctrl+S)" disabled>
     <i class="fa-solid fa-floppy-disk"></i> Save</button>
