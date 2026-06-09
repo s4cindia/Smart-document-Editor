@@ -247,24 +247,29 @@ def _fill_delivery(audit: pl.DataFrame, out: Path, title: str = "",
     from openpyxl import load_workbook
     wb = load_workbook(WCAG_DELIVERY_TEMPLATE)
 
-    # ---- Sheet 2: "All Issues" — map audit columns to the template headers ----
+    # ---- Sheet 2: "All Issues" — map the audit's first 16 columns (A–P)
+    # POSITIONALLY into the template's A–P. The audit's A–P line up with the
+    # delivery A–P; only column C differs in label (audit "Issue Category" vs
+    # template "Issue Type") — same position — so by-name mapping would wrongly
+    # pull the audit's separate "Issue Type" (col R) into C. Positional is right.
     issues = next((wb[n] for n in wb.sheetnames
                    if "all issues" in n.lower() or n.strip().startswith("2")), None)
     if issues is not None:
-        tgt_headers = [issues.cell(1, c).value for c in range(1, (issues.max_column or 0) + 1)]
-        tgt_headers = [str(h).strip() if h is not None else "" for h in tgt_headers]
-        src = {str(c).strip().lower(): c for c in audit.columns}
-        col_for = [src.get(h.lower()) for h in tgt_headers]   # audit col per target col
+        n_tgt = min(issues.max_column or 0, 16)   # delivery sheet 2 = A–P only
+        src_cols = list(audit.columns)            # 23 audit columns, in order
         rows = audit.to_dicts()
         start = 2
         for i, r in enumerate(rows, start=start):
-            for j, ac in enumerate(col_for, start=1):
-                issues.cell(row=i, column=j,
-                            value=(r.get(ac) if ac is not None else None))
+            for j in range(1, n_tgt + 1):
+                val = r.get(src_cols[j - 1]) if j - 1 < len(src_cols) else None
+                issues.cell(row=i, column=j, value=val)
         # clear any leftover template example rows below the data
         for rr in range(start + len(rows), (issues.max_row or 0) + 1):
             for cc in range(1, (issues.max_column or 0) + 1):
                 issues.cell(rr, cc).value = None
+        # ensure nothing exists beyond column P (16)
+        if (issues.max_column or 0) > 16:
+            issues.delete_cols(17, (issues.max_column or 16) - 16)
 
     # ---- Sheet 1: "Audit Summary" — headings + derivable metrics --------------
     summary = next((wb[n] for n in wb.sheetnames
