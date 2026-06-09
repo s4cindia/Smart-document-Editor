@@ -47,7 +47,7 @@ def merge_open():
         paths = save_uploads(files)
         outputs, stats, _preview = services.merge(paths)
         merged_path = outputs[0][1]
-        load_tabular(merged_path)
+        load_tabular(merged_path, sort_id=True)
     except ValueError as exc:
         return fail(str(exc))
     except Exception as exc:  # noqa: BLE001

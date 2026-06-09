@@ -490,6 +490,17 @@ canvas { max-width: 100%; }
   --ag-header-height: 40px;
 }
 .dup-row { background: rgba(217, 119, 6, .12) !important; }
+/* WCAG name missing/mismatched vs wcag_tags.txt (placeholder 3, live).
+   Unique light violet so it never reads as the red "missing/error" cells. */
+.wcag-flag-row { background: rgba(139, 92, 246, .16) !important;
+  box-shadow: inset 3px 0 0 #7c3aed; }
+/* inside a flagged row, the empty/error cells must NOT show their red fill —
+   keep the whole block one unique violet. */
+.wcag-flag-row .missing-cell,
+.wcag-flag-row .error-cell { background: rgba(139, 92, 246, .24) !important; }
+/* WCAG name missing/mismatched vs wcag_tags.txt (placeholder 3, live) */
+.wcag-flag-row { background: rgba(245, 158, 11, .20) !important;
+  box-shadow: inset 3px 0 0 #d97706; }
 /* Distinct colour per duplicate group (rows matching each other share one). */
 .dup-g0 { background: rgba(217, 119, 6, .15) !important; }   /* amber  */
 .dup-g1 { background: rgba(37, 99, 235, .14) !important; }   /* blue   */

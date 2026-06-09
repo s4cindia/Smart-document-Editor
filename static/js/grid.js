@@ -30,6 +30,7 @@
     dupIds: new Set(),
     dupGroup: new Map(),
     errIds: new Set(),
+    wcagIds: new Set(),
   };
   SDE.grid = G;
 
@@ -136,6 +137,7 @@
       ensureDomOrder: true,
       tooltipShowDelay: 400,
       rowClassRules: {
+        "wcag-flag-row": (p) => p.data && G.wcagIds.has(p.data.__id),
         "dup-row": (p) => p.data && G.dupIds.has(p.data.__id) && !G.dupGroup.has(p.data.__id),
         "dup-g0": (p) => p.data && G.dupGroup.get(p.data.__id) === 0,
         "dup-g1": (p) => p.data && G.dupGroup.get(p.data.__id) === 1,
@@ -204,6 +206,11 @@
               if (SDE.refreshStatus) SDE.refreshStatus();
               SDE.toast(`Saved ${changes.length} field(s) in `
                 + ((rowNo != null) ? `row ${rowNo}` : `row #${data.__id}`), "success");
+              // Live WCAG re-check (placeholder 3) if any WCAG field was edited here.
+              if (window.SDE_PAGE_MODE === "delivery" && SDE.checkWcag &&
+                  changes.some((ch) => /wcag/i.test(String(ch.field || "")))) {
+                SDE.checkWcag(data.__id, data);
+              }
             } catch (e) {
               SDE.toast("Save failed: " + e.message, "error");
             } finally { SDE.busy(false); }
@@ -224,6 +231,11 @@
         id: ev.data.__id, field: ev.colDef.field, value: ev.newValue,
       });
       SDE.refreshStatus();
+      // Live WCAG consistency check (placeholder 3) when a WCAG column changes.
+      if (window.SDE_PAGE_MODE === "delivery" && SDE.checkWcag &&
+          /wcag/i.test(String(ev.colDef.field || ""))) {
+        SDE.checkWcag(ev.data.__id, ev.data);
+      }
     } catch (e) {
       SDE.toast("Edit rejected: " + e.message, "error");
       G.refresh();
@@ -352,6 +364,11 @@
         (groupIds || []).forEach((id) => G.dupGroup.set(id, gi % 8));
       });
     }
+    if (G.api) G.api.redrawRows();
+  };
+
+  G.setWcagFlagRows = function (ids) {
+    G.wcagIds = new Set(ids || []);
     if (G.api) G.api.redrawRows();
   };
 

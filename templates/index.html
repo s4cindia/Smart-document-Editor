@@ -112,7 +112,7 @@
       {% if mode == 'delivery' %}
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="export-template"><i class="fa-solid fa-file-invoice"></i>Export using delivery template</button></li>
       {% endif %}
-      {% if mode != 'delivery' %}<li role="none"><button class="ribbon-item" role="menuitem" data-action="reports"><i class="fa-solid fa-file-lines"></i>Export report</button></li>{% endif %}
+      {% if mode not in ['merge', 'delivery'] %}<li role="none"><button class="ribbon-item" role="menuitem" data-action="reports"><i class="fa-solid fa-file-lines"></i>Export report</button></li>{% endif %}
       <li role="none"><div class="ribbon-sep"></div></li>
       <li role="none"><button class="ribbon-item" role="menuitem" data-action="downloads"><i class="fa-solid fa-download"></i>Downloads&hellip;</button></li>
     </ul>

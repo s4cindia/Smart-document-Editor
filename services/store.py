@@ -329,3 +329,21 @@ def drop_all_blank_rows(df: "pl.DataFrame", id_col: str | None = None) -> "pl.Da
                          .str.strip_chars().fill_null("") == ""))
         blank = is_blank if blank is None else (blank & is_blank)
     return df.filter(~blank)
+
+
+def sort_by_id(df: "pl.DataFrame", id_col: str | None = None) -> "pl.DataFrame":
+    """Order rows by their ID column using a natural sort so values like
+    'Issue - 2' come before 'Issue - 10'. The ID column is the one literally
+    named 'ID' (case-insensitive), else the first non-internal column."""
+    cols = [c for c in df.columns if c != ID_COL]
+    if not cols or df.height == 0:
+        return df
+    if id_col is None or id_col not in df.columns:
+        id_col = next((c for c in cols if str(c).strip().lower() == "id"), cols[0])
+    s = pl.col(id_col).cast(pl.Utf8, strict=False)
+    tmp = df.with_columns([
+        s.str.extract(r"(\d+)\s*$", 1).cast(pl.Int64, strict=False).alias("__idnum"),
+        s.str.replace(r"\d+\s*$", "").fill_null("").alias("__idpre"),
+    ])
+    tmp = tmp.sort(["__idpre", "__idnum", id_col], nulls_last=True)
+    return tmp.drop(["__idnum", "__idpre"])
