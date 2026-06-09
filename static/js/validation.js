@@ -84,7 +84,7 @@
     const cards = metricGrid([
       metric("Rows", num(r.total_rows)),
       metric("Columns", num(r.total_columns)),
-      metric("Missing", num(Object.values(r.missing_by_col).reduce((a, b) => a + b, 0)),
+      metric("Blank column", num(Object.values(r.missing_by_col).reduce((a, b) => a + b, 0)),
         r.issue_count ? "warn" : "good"),
       metric("Blank rows", num(r.blank_rows), r.blank_rows ? "bad" : "good"),
       metric("Duplicate rows", num(r.duplicate_rows), r.duplicate_rows ? "bad" : "good"),
@@ -243,6 +243,8 @@
         allColumns: !columns,            // null columns => matched on all columns
         groups: res.group_count,
         rows: res.duplicate_rows,
+        keyColumns: (res.columns && res.columns.length) ? res.columns : (SDE.columns || []),
+        sample: (res.rows || []).slice(0, 300),   // grouped rows w/ values, for review
       };
       const infoBtn = document.getElementById("dupInfoBtn");
       if (infoBtn) infoBtn.style.display = "";

@@ -30,6 +30,8 @@ from services.excel_service import read_sheet
 # Where an optional audit template can be dropped in to enable template output.
 TEMPLATE_DIR = config.data_dir / "templates"
 WCAG_TEMPLATE = TEMPLATE_DIR / "Template_WCAG_Audit.xlsx"
+# Separate template used ONLY by Placeholder 3's "Export using delivery template".
+WCAG_DELIVERY_TEMPLATE = TEMPLATE_DIR / "Template_WCAG_Delivery.xlsx"
 
 
 # --------------------------------------------------------------------------
@@ -109,13 +111,14 @@ def template_status() -> dict:
 
 
 def export_via_template(df: pl.DataFrame, stem: str = "delivery") -> tuple[Path, bool]:
-    """Export a frame using the delivery template if present, else plain xlsx."""
+    """Export a frame using the dedicated delivery template if present, else
+    plain xlsx. (Placeholder 3 'Export using delivery template'.)"""
     out = _outpath(stem)
-    if WCAG_TEMPLATE.exists():
+    if WCAG_DELIVERY_TEMPLATE.exists():
         try:
-            _fill_template(df, out)
-            from services.excel_service import trim_trailing_blank_rows
-            trim_trailing_blank_rows(out)
+            # _fill_template writes after the header and trims that sheet's
+            # trailing blanks; the dashboard / component-health sheets are kept.
+            _fill_template(df, out, template=WCAG_DELIVERY_TEMPLATE)
             return out, True
         except Exception:  # noqa: BLE001
             pass
@@ -546,6 +549,8 @@ def axe_to_audit(path: str | Path, sheet: str | None = None,
     if not template_used:
         _format_standalone_sheet(out_ws, out_row - 1)
     out_wb.save(out)
+    from services.excel_service import trim_trailing_blank_rows
+    trim_trailing_blank_rows(out)
     from services.excel_service import highlight_summary_cells
     # highlighting removed per request: highlight_summary_cells(out)
 
@@ -642,23 +647,33 @@ def _read_output_preview(out_path: Path, sheet_name: str, limit: int = 200) -> d
     return {"columns": columns, "rows": rows, "total": len(rows), "shown": len(rows)}
 
 
-def _fill_template(audit: pl.DataFrame, out: Path) -> None:
-    """Fill an existing Template_WCAG_Audit.xlsx (sheet '2 - All Issues')."""
+def _fill_template(audit: pl.DataFrame, out: Path, template: Path = WCAG_TEMPLATE) -> None:
+    """Fill a template's '2 - All Issues' sheet, writing data right after the
+    header row (overwriting any pre-formatted blank rows), then drop leftover
+    trailing blank rows on that sheet so there is no gap and no empty tail."""
     from openpyxl import load_workbook
-    wb = load_workbook(WCAG_TEMPLATE)
+    wb = load_workbook(template)
     ws = None
     for name in wb.sheetnames:
         if "all issues" in name.lower() or name.strip().startswith("2"):
             ws = wb[name]
             break
     ws = ws or wb.active
-    start = (ws.max_row or 1) + 1 if ws.max_row and ws.max_row > 1 else 2
+    # Header = first non-empty row (normally row 1); data begins immediately after.
+    header_row = 1
+    for r in range(1, (ws.max_row or 1) + 1):
+        if any(ws.cell(r, c).value not in (None, "")
+               for c in range(1, (ws.max_column or 1) + 1)):
+            header_row = r
+            break
+    start = header_row + 1
     for i, row in enumerate(audit.iter_rows(), start=start):
         for j, val in enumerate(row, start=1):
             ws.cell(row=i, column=j, value=val)
     wb.save(out)
-    from services.excel_service import highlight_summary_cells
-    # highlighting removed per request: highlight_summary_cells(out)
+    # Remove any pre-formatted blank rows left below the data on the issues sheet.
+    from services.excel_service import trim_trailing_blank_rows
+    trim_trailing_blank_rows(out, sheet_name=ws.title)
 # Feature 3 — Generate audit Excel for downloadable documents
 # --------------------------------------------------------------------------
 _DOC_TYPES = {".pdf": "PDF", ".doc": "Microsoft Word", ".docx": "Microsoft Word",

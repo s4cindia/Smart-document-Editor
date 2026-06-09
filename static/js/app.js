@@ -321,11 +321,34 @@ SDE.actions["duplicate-info"] = function () {
     ? b.columns.map((c) => `<span class="chip">${SDE.esc(c)}</span>`).join(" ")
     : "<i>all columns</i>";
   const scope = b.allColumns ? "every column in the data" : "the columns currently shown in the grid";
+
+  // Build a per-group table of the actual key-column values so the user can
+  // verify the grouping is correct (rows in a group should match on these).
+  let valuesHTML = "";
+  const keyCols = (b.keyColumns && b.keyColumns.length) ? b.keyColumns.slice(0, 6) : [];
+  const sample = b.sample || [];
+  if (sample.length && keyCols.length) {
+    const header = `<tr><th>Group</th><th>Row</th>${keyCols.map((c) => `<th>${SDE.esc(c)}</th>`).join("")}</tr>`;
+    let lastGroup = null;
+    const body = sample.map((rec) => {
+      const g = rec.__group;
+      const groupCell = (g !== lastGroup)
+        ? `<td><span class="tag amber">#${SDE.esc(g)}</span></td>` : "<td></td>";
+      lastGroup = g;
+      const cells = keyCols.map((c) => `<td>${SDE.esc(rec[c] == null ? "" : rec[c])}</td>`).join("");
+      return `<tr>${groupCell}<td>${SDE.esc(rec.__id)}</td>${cells}</tr>`;
+    }).join("");
+    valuesHTML = `<h4 style="margin:14px 0 6px">Key-column values per group</h4>
+      <div class="hint" style="margin-bottom:6px">Rows sharing a group number should have identical values in these column(s). ${b.sample.length >= 300 ? "Showing the first 300 rows." : ""}</div>
+      <div style="max-height:340px;overflow:auto"><table class="mini-table">${header}${body}</table></div>`;
+  }
+
   SDE.modal({
     title: "What defines a duplicate", icon: "fa-circle-info",
     bodyHTML: `<div class="hint" style="margin-bottom:10px">Two rows were treated as duplicates when they matched on ${scope}:</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${cols}</div>
-      ${b.groups != null ? `<div class="hint" style="margin-top:12px">${b.rows} row(s) in ${b.groups} group(s) were found and grouped together.</div>` : ""}`,
+      ${b.groups != null ? `<div class="hint" style="margin-top:12px">${b.rows} row(s) in ${b.groups} group(s) were found and grouped together.</div>` : ""}
+      ${valuesHTML}`,
     buttons: [{ label: "Close", onClick: SDE.closeModal }],
   });
 };

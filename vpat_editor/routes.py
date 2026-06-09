@@ -15,7 +15,7 @@ from vpat_editor.vpat_core import WCAG_SLUGS, default_data, export_pdf, sc_url
 
 log = logging.getLogger("sde.vpat_editor")
 
-VPAT_BUILD = "42"
+VPAT_BUILD = "43"
 
 vpat_editor_bp = Blueprint("vpat_editor", __name__, template_folder="templates")
 
@@ -246,6 +246,7 @@ def analyze():
             rec["sev"] = _worse(rec["sev"], _conf_from_severity(row[sev_c]))
 
     criteria_status = {}
+    criteria_counts = {sc: rec["count"] for sc, rec in per_sc.items()}
     for sc, rec in per_sc.items():
         if rec["explicit"] is not None:
             conf = rec["explicit"]
@@ -285,6 +286,7 @@ def analyze():
         "versions": sorted(versions),
         "tag_level": tag_level,
         "criteria_status": criteria_status,
+        "criteria_counts": criteria_counts,
         "had_status_col": status_c is not None,
         "had_severity_col": sev_c is not None,
         "rows": finding_rows,

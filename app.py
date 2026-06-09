@@ -27,7 +27,7 @@ log = logging.getLogger("smart_doc_editor")
 
 # Single source of truth for the build/asset version. Bump this to force
 # browsers to reload updated css/js and to confirm a fresh build is running.
-ASSET_VERSION = "63"
+ASSET_VERSION = "69"
 
 # ---------------------------------------------------------------------------
 # Temporarily disabled features.
