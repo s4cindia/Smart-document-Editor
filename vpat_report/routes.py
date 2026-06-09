@@ -54,12 +54,16 @@ def delivery_errors():
 def export_template():
     if not store.loaded:
         return fail("Open a workbook first.")
-    # Downloads contain real data only: drop entirely-blank rows (every cell
-    # null/empty) before stripping the internal id and writing the template.
+    body = request.get_json(force=True, silent=True) or {}
+    title = (body.get("title") or "").strip()
+    course = (body.get("course") or "").strip()
+    details = (body.get("details") or "").strip()
+    # Downloads contain real data only: drop entirely-blank rows before writing.
     clean = drop_all_blank_rows(store.df, ID_COL)
     df = clean.select([c for c in clean.columns if c != ID_COL])
     try:
-        out, used = services.export_template(df, stem="delivery")
+        out, used = services.export_template(df, stem="delivery", title=title,
+                                             course=course, details=details)
     except Exception as exc:  # noqa: BLE001
         log.exception("export-template failed")
         return fail(f"Template export failed: {exc}")

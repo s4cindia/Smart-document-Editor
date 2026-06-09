@@ -46,10 +46,22 @@ def _max_cols_for(mode) -> int:
     return 23 if str(mode or "").lower() == "delivery" else 18
 
 
+def _sort_for(mode) -> bool:
+    # Placeholders 1 (merge) and 3 (delivery) present rows ordered by ID.
+    return str(mode or "").lower() in ("merge", "delivery")
+
+
+def _validate_for(mode) -> bool:
+    # Placeholder 3 (delivery) only accepts the A–W audit format.
+    return str(mode or "").lower() == "delivery"
+
+
 @files_bp.route("/open", methods=["POST"])
 def open_file():
     mode = request.form.get("mode")
     max_cols = _max_cols_for(mode)
+    sort_id = _sort_for(mode)
+    validate_audit = _validate_for(mode)
     if "file" not in request.files:
         return fail("No file part in request.")
     f = request.files["file"]
@@ -68,7 +80,8 @@ def open_file():
             if len(sheets) > 1:
                 return ok(needs_sheet=True, path=str(dest), sheets=sheets,
                           name=dest.name)
-            load_tabular(dest, sheets[0] if sheets else None, max_cols)
+            load_tabular(dest, sheets[0] if sheets else None, max_cols, sort_id,
+                         validate_audit)
             return ok(loaded=True, status=status_payload())
 
         if ext == ".pdf":
@@ -76,8 +89,11 @@ def open_file():
             return ok(loaded=True, pdf=True, status=status_payload(),
                       pdf_info=pdf_info_payload())
 
-        load_tabular(dest, max_cols=max_cols)
+        load_tabular(dest, max_cols=max_cols, sort_id=sort_id,
+                     validate_audit=validate_audit)
         return ok(loaded=True, status=status_payload())
+    except ValueError as exc:
+        return fail(str(exc))
     except Exception as exc:  # noqa: BLE001
         log.exception("open failed: %s", dest.name)
         return fail(f"“{dest.name}” could not be opened. The file may be "
@@ -89,23 +105,30 @@ def open_file():
 def open_path():
     body = request.get_json(force=True, silent=True) or {}
     max_cols = _max_cols_for(body.get("mode"))
+    sort_id = _sort_for(body.get("mode"))
+    validate_audit = _validate_for(body.get("mode"))
     path = Path(body.get("path", "")).expanduser()
     if not path.exists():
         return fail("File not found.")
     ext = path.suffix.lower()
-    if ext == ".pdf":
-        load_pdf(path)
-        return ok(loaded=True, pdf=True, status=status_payload(),
-                  pdf_info=pdf_info_payload())
-    if ext in (".xlsx", ".xls"):
-        sheets = excel_service.list_sheets(path)
-        if len(sheets) > 1:
-            return ok(needs_sheet=True, path=str(path), sheets=sheets,
-                      name=path.name)
-        load_tabular(path, sheets[0] if sheets else None, max_cols)
+    try:
+        if ext == ".pdf":
+            load_pdf(path)
+            return ok(loaded=True, pdf=True, status=status_payload(),
+                      pdf_info=pdf_info_payload())
+        if ext in (".xlsx", ".xls"):
+            sheets = excel_service.list_sheets(path)
+            if len(sheets) > 1:
+                return ok(needs_sheet=True, path=str(path), sheets=sheets,
+                          name=path.name)
+            load_tabular(path, sheets[0] if sheets else None, max_cols, sort_id,
+                         validate_audit)
+            return ok(loaded=True, status=status_payload())
+        load_tabular(path, max_cols=max_cols, sort_id=sort_id,
+                     validate_audit=validate_audit)
         return ok(loaded=True, status=status_payload())
-    load_tabular(path, max_cols=max_cols)
-    return ok(loaded=True, status=status_payload())
+    except ValueError as exc:
+        return fail(str(exc))
 
 
 @files_bp.route("/sheets")
@@ -122,9 +145,14 @@ def load_sheet():
     path = body.get("path")
     sheet = body.get("sheet")
     max_cols = _max_cols_for(body.get("mode"))
+    sort_id = _sort_for(body.get("mode"))
+    validate_audit = _validate_for(body.get("mode"))
     if not path:
         return fail("Missing path.")
-    load_tabular(Path(path), sheet, max_cols)
+    try:
+        load_tabular(Path(path), sheet, max_cols, sort_id, validate_audit)
+    except ValueError as exc:
+        return fail(str(exc))
     return ok(loaded=True, status=status_payload())
 
 
@@ -181,6 +209,91 @@ def columns():
     if not store.loaded:
         return ok(columns=[])
     return ok(columns=column_defs(store.df), names=data_columns(store.df))
+
+
+@data_bp.route("/validate-wcag", methods=["POST"])
+def validate_wcag():
+    """Validate the WCAG Ref, WCAG (name) and WCAG Ver (level) columns against
+    the bundled wcag_tags.txt. Flags rows where any of the three is empty (not
+    filled) or doesn't match the tag file, and returns the specific mismatches.
+    Used by the delivery editor (placeholder 3) to colour rows live + show errors."""
+    if not store.loaded:
+        return ok(ids=[], count=0, active=False)
+    import re as _re
+    from services.feature_service import WCAG_TAGS, load_wcag_tags
+    tags = load_wcag_tags(WCAG_TAGS)            # {sc: (name, level)}
+
+    df = store.df
+    names = [c for c in df.columns if c != ID_COL]
+
+    def _find(*needles):
+        for c in names:
+            lc = str(c).strip().lower()
+            if any(n in lc for n in needles):
+                return c
+        return None
+
+    # WCAG Ref/SC, WCAG name, and WCAG Ver (level) columns.
+    sc_col = _find("wcag ref", "wcag sc", "wcag criteria", "criterion", "success criteria")
+    name_col = next((c for c in names if str(c).strip().lower() in ("wcag", "wcag name")), None)
+    ver_col = _find("wcag ver", "wcag version", "wcag level", "conformance level")
+    if not sc_col or not name_col or not tags:
+        return ok(ids=[], count=0, active=False,
+                  reason="no WCAG columns or tag file" if not tags else "no WCAG columns")
+
+    def _sc(v):
+        if v is None:
+            return ""
+        m = _re.search(r"(\d\.\d+\.\d+)", str(v))
+        return m.group(1) if m else str(v).strip()
+
+    def _level(v):
+        # Normalise a level to A / AA / AAA from 'Level AA', 'AA', 'WCAG2AA', etc.
+        s = _re.sub(r"\(.*?\)", "", str(v if v is not None else "")).strip().upper()
+        m = _re.search(r"WCAG\d+\s*(A{1,3})$", s)
+        if m:
+            return m.group(1)
+        m = _re.search(r"(?:LEVEL\s*)?(A{1,3})\s*$", s)
+        return m.group(1) if m else ""
+
+    sel = [ID_COL, sc_col, name_col] + ([ver_col] if ver_col else [])
+    rows = df.select(sel).to_dicts()
+
+    def _filled(v):
+        return str(v if v is not None else "").strip() != ""
+
+    any_filled = any(_filled(r.get(sc_col)) or _filled(r.get(name_col))
+                     or (ver_col and _filled(r.get(ver_col))) for r in rows)
+    flagged, issues = [], []
+    for r in rows:
+        sc = _sc(r.get(sc_col))
+        sc_filled = _filled(r.get(sc_col))
+        name = str(r.get(name_col) or "").strip()
+        ver = str(r.get(ver_col) or "").strip() if ver_col else ""
+        probs = []
+        if not sc_filled:
+            probs.append("WCAG Ref not filled")
+        elif sc not in tags:
+            probs.append(f"WCAG Ref '{sc}' is not a valid criterion")
+        else:
+            canon_name, canon_level = tags[sc]
+            if not name:
+                probs.append("WCAG (name) not filled")
+            elif name.lower() != canon_name.lower():
+                probs.append(f"WCAG should be '{canon_name}'")
+            if ver_col:
+                if not ver:
+                    probs.append("WCAG Ver not filled")
+                elif _level(ver) and _level(ver) != _level(canon_level):
+                    probs.append(f"WCAG Ver should be {canon_level}")
+        if probs:
+            flagged.append(int(r[ID_COL]))
+            issues.append({"id": int(r[ID_COL]), "ref": sc or "(blank)",
+                           "problems": probs})
+    if not any_filled:
+        flagged, issues = [], []
+    return ok(ids=flagged, count=len(flagged), active=any_filled, issues=issues[:50],
+              sc_col=sc_col, name_col=name_col, ver_col=ver_col)
 
 
 @data_bp.route("/rows", methods=["POST"])

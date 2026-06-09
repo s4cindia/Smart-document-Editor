@@ -14,6 +14,8 @@ def delivery_summary(df):
     return feature_service.summarize_delivery(df)
 
 
-def export_template(df, stem="delivery"):
+def export_template(df, stem="delivery", title="", course="", details=""):
     """Export the loaded data via the delivery template. Returns (path, used)."""
-    return feature_service.export_via_template(df, stem=stem)
+    from services import feature_service
+    return feature_service.export_via_template(df, stem=stem, title=title,
+                                               course=course, details=details)

@@ -191,6 +191,37 @@ SDE.afterOpen = function (d) {
   SDE.setValidationStatus("Not validated");
   SDE.markClean();
   SDE.toast("File loaded", "success");
+  if (window.SDE_PAGE_MODE === "delivery") SDE.checkWcag();
+};
+
+/* Placeholder 3: flag rows whose WCAG name doesn't match wcag_tags.txt for
+   their WCAG Ref (empty or mismatched). Colours those rows live in the grid,
+   and—when a WCAG cell was just edited—pops up if that row is still incomplete. */
+SDE.checkWcag = async function (editedId, rowData) {
+  if (window.SDE_PAGE_MODE !== "delivery" || !SDE.grid || !SDE.grid.setWcagFlagRows) return;
+  try {
+    const d = await SDE.post("/api/data/validate-wcag", {});
+    const ids = d.active ? (d.ids || []) : [];
+    SDE.grid.setWcagFlagRows(ids);
+    // After a WCAG edit, if any row still has missing/mismatched WCAG values,
+    // pop up the specific errors so the user can fix them.
+    if (editedId != null && ids.length) {
+      const issues = d.issues || [];
+      const lines = issues.slice(0, 12).map((it) =>
+        `<tr><td style="font-weight:700;white-space:nowrap">${SDE.esc(String(it.ref))}</td>
+          <td>${(it.problems || []).map((p) => SDE.esc(p)).join("; ")}</td></tr>`).join("");
+      const more = issues.length > 12 ? `<div class="hint">…and ${issues.length - 12} more.</div>` : "";
+      SDE.modal({
+        title: "WCAG mismatch with tag file", icon: "fa-triangle-exclamation",
+        bodyHTML: `<div class="hint"><b>${ids.length}</b> row(s) don't match
+          <code>wcag_tags.txt</code> on WCAG Ref, WCAG name, or WCAG Ver
+          (highlighted in violet):</div>
+          <div style="max-height:300px;overflow:auto;margin-top:8px">
+          <table class="mini-table"><tr><th>WCAG Ref</th><th>Problem</th></tr>${lines}</table></div>${more}`,
+        buttons: [{ label: "OK", variant: "primary", onClick: SDE.closeModal }],
+      });
+    }
+  } catch (e) { /* non-fatal */ }
 };
 
 SDE.pickSheet = function (path, sheets, name) {
@@ -719,18 +750,49 @@ SDE.handleTemplateUpload = async function (file) {
     } else { SDE.toast(e.message, "error"); }
   } finally { SDE.busy(false); }
 };
-SDE.actions["export-template"] = async function () {
+SDE.actions["export-template"] = function () {
   if (!SDE.requireData()) return;
-  SDE.busy(true);
-  try {
-    await SDE.commitEdits();
-    const d = await SDE.post("/api/feature/export-template", {});
-    SDE.toast(d.template_used ? "Exported using the delivery template"
-      : "No template installed — exported a standalone workbook",
-      d.template_used ? "success" : "info");
-    SDE.downloadLinkToast(d.url, d.file, {});
-  } catch (e) { SDE.toast(e.message, "error"); }
-  finally { SDE.busy(false); }
+  // Auto-fill defaults from the loaded file; user can edit but not leave blank.
+  const fname = (SDE.status && SDE.status.file) || "";
+  const courseDefault = fname.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+  const rows = (SDE.status && SDE.status.rows) || 0;
+  SDE.modal({
+    title: "Export using delivery template", icon: "fa-file-invoice",
+    bodyHTML: `<div class="hint" style="margin-bottom:10px">These fill the Audit Summary
+      heading. They're pre-filled from your file — edit if needed, but they can't be empty.</div>
+      <div class="field"><label>Report title</label>
+        <input id="tplTitle" type="text" value="WCAG 2.2 AA Accessibility Audit Report"></div>
+      <div class="field" style="margin-top:8px"><label>Course / product name</label>
+        <input id="tplCourse" type="text" value="${SDE.esc(courseDefault)}" placeholder="e.g. Phlebotomy Essentials 8e"></div>
+      <div class="field" style="margin-top:8px"><label>Course details / content</label>
+        <input id="tplDetails" type="text" value="${rows} issue(s) in this delivery" placeholder="e.g. ISBN … | Navigate Premier + eBook"></div>
+      <div id="tplErr" class="hint" style="color:#dc2626;margin-top:8px;display:none"></div>`,
+    buttons: [
+      { label: "Cancel", onClick: SDE.closeModal },
+      { label: "Export", variant: "primary", onClick: async () => {
+          const title = document.getElementById("tplTitle").value.trim();
+          const course = document.getElementById("tplCourse").value.trim();
+          const details = document.getElementById("tplDetails").value.trim();
+          const err = document.getElementById("tplErr");
+          if (!title || !course || !details) {
+            err.textContent = "Title, course, and details are all required — none can be empty.";
+            err.style.display = "block";
+            return;
+          }
+          SDE.closeModal();
+          SDE.busy(true);
+          try {
+            await SDE.commitEdits();
+            const d = await SDE.post("/api/feature/export-template", { title, course, details });
+            SDE.toast(d.template_used ? "Exported using the delivery template"
+              : "No template installed — exported a standalone workbook",
+              d.template_used ? "success" : "info");
+            SDE.downloadLinkToast(d.url, d.file, {});
+          } catch (e) { SDE.toast(e.message, "error"); }
+          finally { SDE.busy(false); }
+        } },
+    ],
+  });
 };
 
 SDE.actions["export-excel"] = function () {

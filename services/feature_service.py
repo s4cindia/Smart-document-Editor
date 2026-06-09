@@ -110,22 +110,224 @@ def template_status() -> dict:
     return {"found": WCAG_TEMPLATE.exists(), "path": str(WCAG_TEMPLATE)}
 
 
-def export_via_template(df: pl.DataFrame, stem: str = "delivery") -> tuple[Path, bool]:
-    """Export a frame using the dedicated delivery template if present, else
-    plain xlsx. (Placeholder 3 'Export using delivery template'.)"""
+# Canonical audit columns (placeholder-2 output / Template_WCAG_Audit.xlsx, A–W).
+# A delivery import (placeholder 3) must match these 23 headers.
+_AUDIT_HEADERS_FALLBACK = [
+    "ID", "Priority", "Issue Category", "Root Cause", "Component", "WCAG Ver",
+    "Issue", "Element", "Issue URL", "Resolution", "Fix Owner", "Instances",
+    "Pages", "WCAG Ref", "WCAG", "Verified", "Project Key", "Issue Type",
+    "Summary", "Description", "Severity", "Assignee", "Parent",
+]
+
+
+def audit_headers() -> list[str]:
+    """The 23 column headers a delivery import must match — read from the audit
+    template if present, else the built-in list."""
+    if WCAG_TEMPLATE.exists():
+        try:
+            from openpyxl import load_workbook
+            wb = load_workbook(WCAG_TEMPLATE, read_only=True)
+            ws = next((wb[n] for n in wb.sheetnames
+                       if "all issues" in n.lower() or n.strip().startswith("2")),
+                      wb.active)
+            hdr = [str(ws.cell(1, c).value).strip()
+                   for c in range(1, (ws.max_column or 0) + 1)
+                   if ws.cell(1, c).value not in (None, "")]
+            wb.close()
+            if hdr:
+                return hdr
+        except Exception:  # noqa: BLE001
+            pass
+    return list(_AUDIT_HEADERS_FALLBACK)
+
+
+def validate_audit_columns(columns) -> str | None:
+    """Return a human-readable reason if `columns` don't match the audit format
+    (the A–W headers), else None. Used to gate placeholder-3 imports."""
+    from openpyxl.utils import get_column_letter
+    expected = audit_headers()
+    got = [str(c).strip() for c in columns]
+    exp_lower = [h.lower() for h in expected]
+    got_lower = [c.lower() for c in got]
+    if len(got) != len(expected):
+        missing = [h for h in expected if h.lower() not in got_lower]
+        extra = [c for c in got if c.lower() not in exp_lower]
+        parts = [f"expected {len(expected)} columns (A–{get_column_letter(len(expected))}) "
+                 f"but the file has {len(got)}"]
+        if missing:
+            parts.append("missing: " + ", ".join(missing))
+        if extra:
+            parts.append("unexpected: " + ", ".join(extra[:8]))
+        return "; ".join(parts)
+    mism = [(i + 1, expected[i], got[i]) for i in range(len(expected))
+            if exp_lower[i] != got_lower[i]]
+    if mism:
+        details = "; ".join(f"column {get_column_letter(i)} should be '{e}', found '{g}'"
+                            for i, e, g in mism[:6])
+        more = "" if len(mism) <= 6 else f" (+{len(mism) - 6} more)"
+        return f"column names don't match the audit template — {details}{more}"
+    return None
+
+
+def export_via_template(df: pl.DataFrame, stem: str = "delivery",
+                        title: str = "", course: str = "",
+                        details: str = "") -> tuple[Path, bool]:
+    """Export a frame using the delivery template if present, else plain xlsx.
+    (Placeholder 3 'Export using delivery template'.) Fills Sheet 1's headings
+    (title / course / details — never blank) and the derivable dashboard
+    numbers, and maps the data into Sheet 2 by matching headers."""
     out = _outpath(stem)
     if WCAG_DELIVERY_TEMPLATE.exists():
         try:
-            # _fill_template writes after the header and trims that sheet's
-            # trailing blanks; the dashboard / component-health sheets are kept.
-            _fill_template(df, out, template=WCAG_DELIVERY_TEMPLATE)
+            _fill_delivery(df, out, title=title, course=course, details=details)
             return out, True
         except Exception:  # noqa: BLE001
-            pass
+            log = __import__("logging").getLogger("sde.vpat_report")
+            log.exception("delivery template fill failed; falling back to plain")
     from services.excel_service import write_excel, trim_trailing_blank_rows
     write_excel(df, out, sheet_name="Delivery")
     trim_trailing_blank_rows(out)
     return out, False
+
+
+def _summary_metrics(audit: pl.DataFrame) -> dict:
+    """Compute the derivable Sheet-1 dashboard numbers from the loaded audit
+    data. Non-derivable metrics (component counts, scan depth) are left out."""
+    tags = load_wcag_tags(WCAG_TAGS)
+    prio_c = _find_col(audit, ["priority"])
+    ref_c = _find_col(audit, ["wcag ref", "wcag sc"])
+    owner_c = _find_col(audit, ["fix owner", "owner"])
+    rows = audit.to_dicts()
+    total = len(rows)
+
+    sev = {"Critical": 0, "Serious": 0, "Moderate": 0, "Minor": 0}
+    _pmap = [("p1", "Critical"), ("critical", "Critical"), ("p2", "Serious"),
+             ("serious", "Serious"), ("p3", "Moderate"), ("moderate", "Moderate"),
+             ("p4", "Minor"), ("minor", "Minor")]
+    n21 = n22 = 0
+    fix = {"Direct fix — edit in Moodle": 0, "LMS Admin — template fix": 0,
+           "Vendor ticket": 0, "Publisher — eBook source": 0}
+    import re as _re
+    for r in rows:
+        pv = str(r.get(prio_c) or "").lower() if prio_c else ""
+        for needle, bucket in _pmap:
+            if needle in pv:
+                sev[bucket] += 1
+                break
+        if ref_c:
+            m = _re.search(r"(\d\.\d+\.\d+)", str(r.get(ref_c) or ""))
+            sc = m.group(1) if m else ""
+            if sc in tags:
+                level = tags[sc][1]
+                lvl = _re.sub(r"\(.*?\)", "", level).strip().upper().replace("LEVEL", "").strip()
+                if lvl in ("A", "AA"):
+                    if "(added in 2.2)" in level.lower():
+                        n22 += 1
+                    else:
+                        n21 += 1
+        if owner_c:
+            ov = str(r.get(owner_c) or "").lower()
+            if "moodle" in ov or "direct" in ov:
+                fix["Direct fix — edit in Moodle"] += 1
+            elif "lms" in ov or "template" in ov or "admin" in ov:
+                fix["LMS Admin — template fix"] += 1
+            elif "vendor" in ov:
+                fix["Vendor ticket"] += 1
+            elif "publisher" in ov or "ebook" in ov:
+                fix["Publisher — eBook source"] += 1
+    return {"total": total, "sev": sev, "n21": n21, "n22": n22,
+            "best": max(0, total - n21 - n22), "fix": fix}
+
+
+def _fill_delivery(audit: pl.DataFrame, out: Path, title: str = "",
+                   course: str = "", details: str = "") -> None:
+    """Fill the delivery template: Sheet 1 (headings + derivable metrics),
+    Sheet 2 (data mapped by header), and clear Sheet 3's foreign example data."""
+    import datetime as _dt
+    from openpyxl import load_workbook
+    wb = load_workbook(WCAG_DELIVERY_TEMPLATE)
+
+    # ---- Sheet 2: "All Issues" — map audit columns to the template headers ----
+    issues = next((wb[n] for n in wb.sheetnames
+                   if "all issues" in n.lower() or n.strip().startswith("2")), None)
+    if issues is not None:
+        tgt_headers = [issues.cell(1, c).value for c in range(1, (issues.max_column or 0) + 1)]
+        tgt_headers = [str(h).strip() if h is not None else "" for h in tgt_headers]
+        src = {str(c).strip().lower(): c for c in audit.columns}
+        col_for = [src.get(h.lower()) for h in tgt_headers]   # audit col per target col
+        rows = audit.to_dicts()
+        start = 2
+        for i, r in enumerate(rows, start=start):
+            for j, ac in enumerate(col_for, start=1):
+                issues.cell(row=i, column=j,
+                            value=(r.get(ac) if ac is not None else None))
+        # clear any leftover template example rows below the data
+        for rr in range(start + len(rows), (issues.max_row or 0) + 1):
+            for cc in range(1, (issues.max_column or 0) + 1):
+                issues.cell(rr, cc).value = None
+
+    # ---- Sheet 1: "Audit Summary" — headings + derivable metrics --------------
+    summary = next((wb[n] for n in wb.sheetnames
+                    if "audit summary" in n.lower() or n.strip().startswith("1")), None)
+    if summary is not None:
+        m = _summary_metrics(audit)
+        title = (title or "").strip() or "WCAG 2.2 AA Accessibility Audit Report"
+        course = (course or "").strip() or "(not specified)"
+        details = (details or "").strip() or f"{m['total']} issue(s) in this delivery"
+        summary["A1"] = title
+        summary["A2"] = (f"Standard: WCAG22AA | Generated: "
+                         f"{_dt.datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        sev = m["sev"]
+        # Map by the label in column A so row positions can shift safely.
+        derivable = {
+            "course": (course, details),
+            "defects found": (m["total"],
+                              f"Critical: {sev['Critical']} | Serious: {sev['Serious']} "
+                              f"| Moderate: {sev['Moderate']} | Minor: {sev['Minor']}"),
+            "wcag 2.1 aa issues": (m["n21"], None),
+            "wcag 2.2 aa issues": (m["n22"], None),
+            "best practice issues": (m["best"], None),
+            "direct fix": (m["fix"]["Direct fix — edit in Moodle"], None),
+            "lms admin": (m["fix"]["LMS Admin — template fix"], None),
+            "vendor ticket": (m["fix"]["Vendor ticket"], None),
+            "publisher": (m["fix"]["Publisher — eBook source"], None),
+        }
+        # Labels whose Value/Details we can't derive from All Issues -> blank.
+        non_derivable = ["components in course section", "moodle html pages",
+                         "ebook content", "deep scan", "automated pre-checks",
+                         "at testing"]
+        for r in range(1, (summary.max_row or 0) + 1):
+            label = str(summary.cell(r, 1).value or "").strip().lower()
+            if not label:
+                continue
+            if label == "course":
+                summary.cell(r, 2).value = course
+                summary.cell(r, 3).value = details
+                continue
+            hit = next((v for k, v in derivable.items()
+                        if k != "course" and label.startswith(k)), None)
+            if hit is not None:
+                summary.cell(r, 2).value = hit[0]
+                if hit[1] is not None:
+                    summary.cell(r, 3).value = hit[1]
+                continue
+            if any(label.startswith(k) for k in non_derivable):
+                summary.cell(r, 2).value = None
+                summary.cell(r, 3).value = None
+
+    # ---- Sheet 3: "Component Health" — clear foreign example rows (keep header)
+    comp = next((wb[n] for n in wb.sheetnames if "component" in n.lower()), None)
+    if comp is not None:
+        for rr in range(2, (comp.max_row or 0) + 1):
+            for cc in range(1, (comp.max_column or 0) + 1):
+                comp.cell(rr, cc).value = None
+
+    wb.save(out)
+    from services.excel_service import trim_trailing_blank_rows
+    if issues is not None:
+        trim_trailing_blank_rows(out, sheet_name=issues.title)
+    if comp is not None:
+        trim_trailing_blank_rows(out, sheet_name=comp.title)
 
 
 def summarize_delivery(df: pl.DataFrame) -> dict:

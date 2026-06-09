@@ -16,7 +16,7 @@ from flask import abort, jsonify, render_template
 
 from config import config
 from services import (csv_service, excel_service, feature_service, pdf_service)
-from services.store import FileMeta, store, drop_all_blank_rows
+from services.store import FileMeta, store, drop_all_blank_rows, sort_by_id
 from utils import file_utils
 from utils.helpers import data_columns
 
@@ -88,7 +88,8 @@ def feature_response(outputs, stats, preview):
 # --------------------------------------------------------------------------
 # Loaders (tabular + pdf) — shared by the editor + merge-open
 # --------------------------------------------------------------------------
-def load_tabular(path: Path, sheet: str | None = None, max_cols: int = 18) -> None:
+def load_tabular(path: Path, sheet: str | None = None, max_cols: int = 18,
+                 sort_id: bool = False, validate_audit: bool = False) -> None:
     ext = path.suffix.lower()
     if ext in (".xlsx", ".xls"):
         df = excel_service.read_sheet(path, sheet)
@@ -98,6 +99,15 @@ def load_tabular(path: Path, sheet: str | None = None, max_cols: int = 18) -> No
         source = "csv"
     else:
         raise ValueError(f"Unsupported tabular type: {ext}")
+    # Placeholder 3 only accepts the audit format (A–W). Validate the RAW header
+    # row (before any column trimming) and reject anything that doesn't match.
+    if validate_audit:
+        from services.feature_service import validate_audit_columns
+        err = validate_audit_columns(list(df.columns))
+        if err:
+            raise ValueError(
+                "This file can't be imported here — it must use the audit format "
+                f"(columns A–W from placeholder 2). {err}.")
     # Trim trailing columns beyond the expected range so stray content never
     # reaches the editor. Merge / main editor keep A-R (18); the delivery
     # editor keeps A-W (23). Controlled by max_cols from the caller.
@@ -106,6 +116,9 @@ def load_tabular(path: Path, sheet: str | None = None, max_cols: int = 18) -> No
     # Remove rows where the WHOLE row is blank (every cell null/empty) so the
     # user only ever sees real data. Rows with some empty cells are kept.
     df = drop_all_blank_rows(df)
+    if sort_id:
+        # Placeholders 1 & 3: present rows ordered by their ID column.
+        df = sort_by_id(df)
     meta = FileMeta(
         path=str(path), name=path.name, ext=ext,
         size=file_utils.human_size(path.stat().st_size),
