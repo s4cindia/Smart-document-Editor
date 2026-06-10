@@ -750,6 +750,40 @@ SDE.handleTemplateUpload = async function (file) {
     } else { SDE.toast(e.message, "error"); }
   } finally { SDE.busy(false); }
 };
+/* WCAG tag lookup (placeholder 3 "Help"): search the wcag_tags.txt file by
+   criterion number, name, or level and show matching rows (Ref / WCAG / Ver). */
+SDE.actions["wcag-help"] = function () {
+  SDE.modal({
+    title: "WCAG tag lookup", icon: "fa-circle-question", wide: true,
+    bodyHTML: `<div class="hint">Search the WCAG tag file by criterion number,
+        name, or level — results are the matching WCAG Ref, WCAG (name) and WCAG Ver (level).</div>
+      <input id="wcagQ" type="text" autocomplete="off" placeholder="e.g. 1.4.3  ·  contrast  ·  AA"
+        oninput="SDE.wcagSearch(this.value)" style="width:100%;margin:10px 0;padding:8px 10px">
+      <div id="wcagResults" style="max-height:340px;overflow:auto"></div>`,
+    buttons: [{ label: "Close", onClick: SDE.closeModal }],
+  });
+  SDE.wcagSearch("");   // show the full list initially
+};
+
+SDE.wcagSearch = async function (q) {
+  const box = document.getElementById("wcagResults");
+  if (!box) return;
+  try {
+    const d = await SDE.post("/api/data/wcag-search", { q: q || "" });
+    if (!d.count) {
+      box.innerHTML = `<div class="hint">No matching WCAG criteria in the tag file.</div>`;
+      return;
+    }
+    const rows = (d.rows || []).map((r) =>
+      `<tr><td style="font-weight:600;white-space:nowrap">${SDE.esc(r.ref)}</td>
+        <td>${SDE.esc(r.name)}</td><td style="white-space:nowrap">${SDE.esc(r.level)}</td></tr>`).join("");
+    box.innerHTML = `<div class="hint" style="margin-bottom:6px">${d.count} of ${d.total} criteria</div>
+      <table class="mini-table"><tr><th>WCAG Ref</th><th>WCAG</th><th>WCAG Ver</th></tr>${rows}</table>`;
+  } catch (e) {
+    box.innerHTML = `<div class="hint" style="color:#dc2626">Search failed: ${SDE.esc(e.message)}</div>`;
+  }
+};
+
 SDE.actions["export-template"] = function () {
   if (!SDE.requireData()) return;
   // Auto-fill defaults from the loaded file; user can edit but not leave blank.

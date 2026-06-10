@@ -126,6 +126,7 @@
     <span class="tpl-note-text">{% if template_found %}Template ready{% else %}No template — plain output{% endif %}</span>
   </span>
   <input type="file" id="tplFileInput" accept=".xlsx,.xlsm" hidden>
+  <button class="ribbon-top" data-action="wcag-help" title="Look up WCAG criteria from the tag file"><i class="fa-solid fa-circle-question"></i> Help</button>
   {% endif %}
   <span class="save-state" id="saveState" data-dirty="false"><i class="fa-solid fa-circle-check"></i> Saved</span>
   <button class="ribbon-save" data-action="save" id="saveBtn" title="Save changes (Ctrl+S)" disabled>
