@@ -143,15 +143,25 @@ def audit_headers() -> list[str]:
 
 def validate_audit_columns(columns) -> str | None:
     """Return a human-readable reason if `columns` don't match the audit format
-    (the A–W headers), else None. Used to gate placeholder-3 imports."""
+    (the A–W headers), else None. Used to gate placeholder-3 imports.
+
+    Column C must be exactly 'Issue Category' — files using any other label for
+    that column (e.g. 'Issue Type') are rejected so the loaded/exported data is
+    consistently 'Issue Category'."""
     from openpyxl.utils import get_column_letter
+
+    def _accepts(expected_lower: str, got_lower: str) -> bool:
+        return expected_lower == got_lower
+
     expected = audit_headers()
     got = [str(c).strip() for c in columns]
     exp_lower = [h.lower() for h in expected]
     got_lower = [c.lower() for c in got]
     if len(got) != len(expected):
-        missing = [h for h in expected if h.lower() not in got_lower]
-        extra = [c for c in got if c.lower() not in exp_lower]
+        missing = [h for h in expected
+                   if not any(_accepts(h.lower(), g) for g in got_lower)]
+        extra = [c for c in got
+                 if not any(_accepts(e, c.lower()) for e in exp_lower)]
         parts = [f"expected {len(expected)} columns (A–{get_column_letter(len(expected))}) "
                  f"but the file has {len(got)}"]
         if missing:
@@ -160,7 +170,7 @@ def validate_audit_columns(columns) -> str | None:
             parts.append("unexpected: " + ", ".join(extra[:8]))
         return "; ".join(parts)
     mism = [(i + 1, expected[i], got[i]) for i in range(len(expected))
-            if exp_lower[i] != got_lower[i]]
+            if not _accepts(exp_lower[i], got_lower[i])]
     if mism:
         details = "; ".join(f"column {get_column_letter(i)} should be '{e}', found '{g}'"
                             for i, e, g in mism[:6])
