@@ -156,7 +156,7 @@
     document.getElementById("breakdowns").innerHTML=bd;
 
     var dls=(j.files||[]).map(function(f){
-      return '<a class="btn ok" href="'+f.url+'" download>'+
+      return '<a class="btn ok" href="'+f.url+'" data-name="'+esc(f.file)+'" download>'+
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+
         '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> '+esc(f.label)+'</a>';
     }).join("");
@@ -165,12 +165,23 @@
 
     if(j.preview && j.preview.columns && j.preview.columns.length) buildPreview(j.preview);
 
-    // auto-download the primary (first) output
-    if(j.files && j.files.length){
-      try{ var a=document.createElement("a"); a.href=j.files[0].url; a.download=j.files[0].file;
-        document.body.appendChild(a); a.click(); a.remove(); }catch(e){}
+    // offer the primary (first) output for save-with-rename right away
+    if(j.files && j.files.length && typeof window.saveFileAs==="function"){
+      window.saveFileAs(j.files[0].url, j.files[0].file);
     }
   }
+
+  // Every result download button routes through the rename-and-save helper.
+  (function(){
+    var box=document.getElementById("downloads");
+    if(!box) return;
+    box.addEventListener("click", function(e){
+      var a=e.target.closest && e.target.closest("a.btn.ok[href]");
+      if(!a || typeof window.saveFileAs!=="function") return;   // plain link otherwise
+      e.preventDefault();
+      window.saveFileAs(a.getAttribute("href"), a.getAttribute("data-name")||"");
+    });
+  })();
 
   /* ---------- preview table: sort / filter / paginate ---------- */
   var PV={cols:[],rows:[],filtered:[],page:0,size:25,sortCol:null,sortDir:1};

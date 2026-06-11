@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import logging
 
-from flask import Blueprint, render_template, send_file
+from flask import Blueprint, render_template, request, send_file
 
 from app_helpers import fail, ok, status_payload
 from config import config
+from utils import file_utils
 
 log = logging.getLogger("sde.dashboard")
 
@@ -38,4 +39,13 @@ def download(area: str, filename: str):
     target = (folder / filename).resolve()
     if not str(target).startswith(str(folder.resolve())) or not target.exists():
         return fail("File not found.", 404)
-    return send_file(target, as_attachment=True)
+    # Honour a user-chosen name (?name=) so the saved file matches what the
+    # rename dialog offered; keep the real file's extension if the user dropped
+    # it, and fall back to the stored name when not provided.
+    download_name = (request.args.get("name") or "").strip()
+    if download_name:
+        download_name = file_utils.safe_filename(download_name)
+        if "." not in download_name and target.suffix:
+            download_name += target.suffix
+    return send_file(target, as_attachment=True,
+                     download_name=download_name or None)

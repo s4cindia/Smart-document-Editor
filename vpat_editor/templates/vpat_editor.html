@@ -839,7 +839,8 @@
     try{
       const r=await fetch("/api/vpat-editor/export-pdf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(DATA)});
       const j=await r.json(); if(!j.ok) throw new Error(j.error||"Export failed");
-      const a=document.createElement("a"); a.href=j.url; a.download=j.file; document.body.appendChild(a); a.click(); a.remove();
+      if(window.saveFileAs){ await window.saveFileAs(j.url, j.file); }
+      else { const a=document.createElement("a"); a.href=j.url; a.download=j.file; document.body.appendChild(a); a.click(); a.remove(); }
       toast("PDF exported: "+j.file,"success");
     }catch(e){ toast(e.message,"error"); }
   };
@@ -847,7 +848,8 @@
     try{
       const r=await fetch("/api/vpat-editor/save-draft",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(DATA)});
       const j=await r.json(); if(!j.ok) throw new Error(j.error||"Save failed");
-      const a=document.createElement("a"); a.href=j.url; a.download=j.file; document.body.appendChild(a); a.click(); a.remove();
+      if(window.saveFileAs){ await window.saveFileAs(j.url, j.file); }
+      else { const a=document.createElement("a"); a.href=j.url; a.download=j.file; document.body.appendChild(a); a.click(); a.remove(); }
       toast("Draft saved: "+j.file,"success");
     }catch(e){ toast(e.message,"error"); }
   };

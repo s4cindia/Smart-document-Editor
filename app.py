@@ -27,7 +27,7 @@ log = logging.getLogger("smart_doc_editor")
 
 # Single source of truth for the build/asset version. Bump this to force
 # browsers to reload updated css/js and to confirm a fresh build is running.
-ASSET_VERSION = "81"
+ASSET_VERSION = "85"
 
 # ---------------------------------------------------------------------------
 # Temporarily disabled features.
@@ -96,12 +96,13 @@ def create_app() -> Flask:
     from downloadable_audit import downloadable_bp
     from vpat_report import vpat_report_bp
     from vpat_editor import vpat_editor_bp
+    from help_lookup import help_bp
 
     for bp in (main_bp, auth_bp, admin_bp,
                files_bp, data_bp, check_bp, transform_bp, analytics_bp,
                export_bp, pdf_bp,
                merge_axe_bp, axe_to_excel_bp, downloadable_bp, vpat_report_bp,
-               vpat_editor_bp):
+               vpat_editor_bp, help_bp):
         app.register_blueprint(bp)
 
     # ---- require login for everything except auth pages + static assets ----

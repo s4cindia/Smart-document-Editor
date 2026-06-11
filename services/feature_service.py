@@ -426,6 +426,9 @@ def merge_axe(paths: list[str | Path]) -> tuple[list, dict, dict]:
 # --------------------------------------------------------------------------
 TARGET_SHEET = "2 - All Issues"
 WCAG_TAGS = TEMPLATE_DIR / "wcag_tags.txt"
+# NOTE: the axe rule catalogue + its loader/search moved to the self-contained
+# Help feature — see help_lookup/service.py (data file: Rule_ID_Mapping.xlsx).
+
 DEFAULT_INPUT_START_ROW = 2
 DEFAULT_OUTPUT_START_ROW = 2
 

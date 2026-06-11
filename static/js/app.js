@@ -331,14 +331,27 @@ SDE.actions["downloads"] = async function () {
       <i class="fa-solid ${SDE.fileIcon(it.name)}"></i>
       <span class="nm">${SDE.esc(it.name)}</span>
       <span class="meta">${SDE.esc(fmt(it.ts))}  \u00b7  ${kb(it.size)}</span>
-      <a class="btn-mini" href="${SDE.esc(it.url)}" download
+      <a class="btn-mini" href="${SDE.esc(it.url)}" data-name="${SDE.esc(it.name)}" download
          style="margin-left:auto;text-decoration:none"><i class="fa-solid fa-download"></i> Download</a>
     </div>`).join("");
   SDE.modal({
     title: "Downloads", icon: "fa-download",
-    bodyHTML: `<div class="hint" style="margin-bottom:10px">Files you have exported, newest first. Click <b>Download</b> to get one again.</div>${rows}`,
+    bodyHTML: `<div class="hint" style="margin-bottom:10px">Files you have exported, newest first. Click <b>Download</b> to rename and save one again.</div>${rows}`,
     buttons: [{ label: "Close", onClick: SDE.closeModal }],
   });
+  // Re-downloads from this list also let the user rename before saving.
+  // Attach the delegated handler once for the life of the page (the #modalBody
+  // element persists across modal opens, so guard against stacking listeners).
+  const body = document.getElementById("modalBody");
+  if (body && !body._saveAsBound) {
+    body._saveAsBound = true;
+    body.addEventListener("click", (e) => {
+      const a = e.target.closest && e.target.closest("a.btn-mini[data-name][href]");
+      if (!a || typeof window.saveFileAs !== "function") return;
+      e.preventDefault();
+      window.saveFileAs(a.getAttribute("href"), a.getAttribute("data-name") || "");
+    });
+  }
 };
 
 /* ----- Duplicate basis: explain what defined the last duplicate check --- */
@@ -750,39 +763,8 @@ SDE.handleTemplateUpload = async function (file) {
     } else { SDE.toast(e.message, "error"); }
   } finally { SDE.busy(false); }
 };
-/* WCAG tag lookup (placeholder 3 "Help"): search the wcag_tags.txt file by
-   criterion number, name, or level and show matching rows (Ref / WCAG / Ver). */
-SDE.actions["wcag-help"] = function () {
-  SDE.modal({
-    title: "WCAG tag lookup", icon: "fa-circle-question", wide: true,
-    bodyHTML: `<div class="hint">Search the WCAG tag file by criterion number,
-        name, or level — results are the matching WCAG Ref, WCAG (name) and WCAG Ver (level).</div>
-      <input id="wcagQ" type="text" autocomplete="off" placeholder="e.g. 1.4.3  ·  contrast  ·  AA"
-        oninput="SDE.wcagSearch(this.value)" style="width:100%;margin:10px 0;padding:8px 10px">
-      <div id="wcagResults" style="max-height:340px;overflow:auto"></div>`,
-    buttons: [{ label: "Close", onClick: SDE.closeModal }],
-  });
-  SDE.wcagSearch("");   // show the full list initially
-};
-
-SDE.wcagSearch = async function (q) {
-  const box = document.getElementById("wcagResults");
-  if (!box) return;
-  try {
-    const d = await SDE.post("/api/data/wcag-search", { q: q || "" });
-    if (!d.count) {
-      box.innerHTML = `<div class="hint">No matching WCAG criteria in the tag file.</div>`;
-      return;
-    }
-    const rows = (d.rows || []).map((r) =>
-      `<tr><td style="font-weight:600;white-space:nowrap">${SDE.esc(r.ref)}</td>
-        <td>${SDE.esc(r.name)}</td><td style="white-space:nowrap">${SDE.esc(r.level)}</td></tr>`).join("");
-    box.innerHTML = `<div class="hint" style="margin-bottom:6px">${d.count} of ${d.total} criteria</div>
-      <table class="mini-table"><tr><th>WCAG Ref</th><th>WCAG</th><th>WCAG Ver</th></tr>${rows}</table>`;
-  } catch (e) {
-    box.innerHTML = `<div class="hint" style="color:#dc2626">Search failed: ${SDE.esc(e.message)}</div>`;
-  }
-};
+/* The "Help" lookup (WCAG criteria + axe Rule ID) lives in its own file:
+   static/js/help.js — kept separate so it can be changed in isolation. */
 
 SDE.actions["export-template"] = function () {
   if (!SDE.requireData()) return;
@@ -856,33 +838,18 @@ SDE.actions["export-excel"] = function () {
 };
 
 SDE.downloadLinkToast = function (url, name, meta) {
-  // start the download automatically
+  // Let the user keep the default name or rename it, then save (shared helper
+  // in saveas.js — also used by the standalone operation pages). The row/column
+  // count is shown as context inside the Save dialog.
+  if (typeof window.saveFileAs === "function") {
+    return window.saveFileAs(url, name, meta || {});
+  }
+  // Defensive fallback if saveas.js failed to load: plain download.
   try {
     const a = document.createElement("a");
     a.href = url; a.download = name || "";
     document.body.appendChild(a); a.click(); a.remove();
-  } catch (e) { /* manual link below */ }
-
-  const count = (meta && meta.rows != null && meta.cols != null)
-    ? `<div class="export-count">
-         <div class="ec-nums"><b>${Number(meta.rows).toLocaleString()}</b> rows
-           &nbsp;&middot;&nbsp; <b>${Number(meta.cols).toLocaleString()}</b> columns</div>
-         <div class="ec-sub">included in the exported file</div>
-       </div>`
-    : "";
-
-  // Use the app's OWN modal (local, always present) instead of SweetAlert2,
-  // so the count is shown reliably even if a CDN library failed to load.
-  SDE.modal({
-    title: "Export complete", icon: "fa-circle-check",
-    bodyHTML: `${count}
-      <div class="hint" style="margin:4px 0 14px">
-        Your download should have started automatically. If it didn't, use the
-        button below.</div>
-      <a href="${url}" download class="btn primary" style="width:100%;text-align:center">
-        <i class="fa-solid fa-download"></i>&nbsp; Download ${SDE.esc(name)}</a>`,
-    buttons: [{ label: "Done", variant: "primary", onClick: SDE.closeModal }],
-  });
+  } catch (e) { /* ignore */ }
 };
 
 SDE.actions["reports"] = function () {

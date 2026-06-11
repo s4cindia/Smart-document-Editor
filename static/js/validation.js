@@ -298,11 +298,7 @@
     } catch (e) { SDE.toast(e.message, "error"); }
     finally { SDE.busy(false); }
   };
-
-  /* =======================================================================
-     ANALYTICS group
-     ===================================================================== */
-
+  
   /* ----- Summary (overview) -------------------------------------------- */
   SDE.actions["summary"] = async function () {
     if (!gate()) return;

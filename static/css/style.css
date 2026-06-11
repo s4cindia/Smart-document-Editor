@@ -690,3 +690,5 @@ input[type="email"], input[type="password"], textarea, select,
 .btn-mini:hover { background:#2563eb; color:#fff; border-color:#2563eb; }
 .chip { display:inline-block; font-size:12px; font-weight:600; color:#1f2937;
   background:#eef2f7; border:1px solid #e2e8f0; border-radius:999px; padding:3px 10px; }
+
+

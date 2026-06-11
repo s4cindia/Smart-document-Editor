@@ -190,6 +190,62 @@ def _parse_versions(cell):
     return vers, rank
 
 
+# --------------------------------------------------------------------------
+# Input-file validation
+# The VPAT editor auto-fills the report from a SINGLE audit datasheet — the
+# "placeholder 2" / All-Issues format (columns A–W of Template_WCAG_Audit.xlsx).
+# That one sheet has to carry every column the delivery template reads to build
+# its three sheets (see services.feature_service._fill_delivery):
+#   • Sheet 2 "All Issues"      — the per-issue rows themselves
+#   • Sheet 1 "Audit Summary"   — severity counts (Priority), 2.1/2.2 split
+#                                 (WCAG Ref) and the fix breakdown (Fix Owner)
+#   • Sheet 3 "Component Health"— grouped per Component
+# Anything that is filled in by hand afterwards (the component-health rows, the
+# scan-depth / AT-testing summary lines, etc.) is NOT needed in the input and is
+# ignored here. If any required column is missing we refuse to open the file.
+# Each entry is (human label, accepted header aliases matched as a
+# case-insensitive substring of a header cell).
+# --------------------------------------------------------------------------
+_REQUIRED_AUDIT_COLS = [
+    ("Priority",       ["priority"]),
+    ("WCAG Ver",       ["wcag ver", "wcag version", "standard"]),
+    ("WCAG Ref",       ["wcag ref", "wcag sc", "wcag reference",
+                        "success criteria", "criterion"]),
+    ("Component",      ["component"]),
+    ("Issue",          ["issue"]),
+    ("Issue Category", ["issue category"]),
+    ("Fix Owner",      ["fix owner", "owner"]),
+]
+
+
+def _header_has(headers, aliases):
+    """True when any alias is a substring of any (already-normalised) header."""
+    return any(any(a in h for h in headers) for a in aliases)
+
+
+def _missing_required_cols(sheets):
+    """Scan every sheet's top rows for the header that satisfies the most
+    required columns; return the labels still missing from that best header.
+
+    Scanning a band of rows (rather than one best-guess header) keeps a
+    populated sheet — whose data rows can out-score the real header — correct.
+    An empty list means the file carries all required columns.
+    """
+    best_missing = None
+    for _name, rows in sheets:
+        rows = [r for r in rows if any(c is not None and str(c).strip() != "" for c in r)]
+        for row in rows[:15]:
+            headers = [_norm(c) for c in row]
+            missing = [label for label, aliases in _REQUIRED_AUDIT_COLS
+                       if not _header_has(headers, aliases)]
+            if best_missing is None or len(missing) < len(best_missing):
+                best_missing = missing
+                if not missing:
+                    return []
+    return best_missing if best_missing is not None else [
+        label for label, _ in _REQUIRED_AUDIT_COLS]
+
+
 @vpat_editor_bp.route("/api/vpat-editor/analyze", methods=["POST"])
 def analyze():
     f = request.files.get("file")
@@ -200,6 +256,18 @@ def analyze():
     except Exception as exc:  # noqa: BLE001
         log.exception("VPAT analyse: read failed")
         return jsonify({"ok": False, "error": f"Could not read the file: {exc}"}), 400
+
+    # The VPAT editor opens a single audit datasheet that carries every column
+    # needed to fill the three delivery sheets. Reject anything else.
+    missing = _missing_required_cols(sheets)
+    if missing:
+        return jsonify({"ok": False, "error": (
+            "This file cannot be opened. The VPAT editor needs a single audit "
+            "datasheet (the placeholder-2 / All-Issues format) that contains "
+            "every column required to fill the three delivery sheets "
+            "(Audit Summary, All Issues, Component Health). Missing column(s): "
+            + ", ".join(missing) + ". Columns that are filled in manually "
+            "afterwards (e.g. component-health rows) are not required.")}), 400
 
     # Choose the sheet whose columns carry the most WCAG references.
     best = None

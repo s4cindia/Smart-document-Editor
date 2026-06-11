@@ -296,27 +296,8 @@ def validate_wcag():
               sc_col=sc_col, name_col=name_col, ver_col=ver_col)
 
 
-@data_bp.route("/wcag-search", methods=["POST"])
-def wcag_search():
-    """Search the bundled wcag_tags.txt by criterion number, name, or level.
-    Returns matching rows as {ref, name, level} (the WCAG Ref / WCAG / WCAG Ver).
-    Powers the delivery editor's 'Help' lookup (placeholder 3)."""
-    from services.feature_service import WCAG_TAGS, load_wcag_tags
-    body = request.get_json(force=True, silent=True) or {}
-    q = str(body.get("q") or "").strip().lower()
-    tags = load_wcag_tags(WCAG_TAGS)            # {id: (name, level)}
-    rows = [{"ref": k, "name": v[0], "level": v[1]} for k, v in tags.items()]
-    if q:
-        rows = [r for r in rows
-                if q in r["ref"].lower() or q in r["name"].lower()
-                or q in r["level"].lower()]
-
-    def _key(r):
-        parts = r["ref"].split(".")
-        return [int(p) if p.isdigit() else 0 for p in parts]
-
-    rows.sort(key=_key)
-    return ok(rows=rows, count=len(rows), total=len(tags))
+# NOTE: the WCAG / axe "Help" lookup endpoints now live in their own
+# self-contained module — see help_lookup/ (mounted at /api/help).
 
 
 @data_bp.route("/rows", methods=["POST"])

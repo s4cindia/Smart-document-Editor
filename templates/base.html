@@ -46,7 +46,9 @@
 
   <!-- App scripts -->
   <script>window.SDE_BUILD = "{{ asset_version }}";</script>
+  <script src="{{ url_for('static', filename='js/saveas.js') }}?v={{ asset_version }}"></script>
   <script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_version }}"></script>
+  <script src="{{ url_for('static', filename='js/help.js') }}?v={{ asset_version }}"></script>
   <script src="{{ url_for('static', filename='js/grid.js') }}?v={{ asset_version }}"></script>
   <script src="{{ url_for('static', filename='js/validation.js') }}?v={{ asset_version }}"></script>
   {% block scripts %}{% endblock %}
